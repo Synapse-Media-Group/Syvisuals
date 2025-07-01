@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Syvisuals</title>
     <meta name="theme-color" content="#0a0a0a"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -103,11 +103,11 @@
         #queue-panel { 
             position: fixed;
             bottom: 8rem;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 2rem;
             width: 90%;
-            max-width: 650px;
-            height: 30vh;
+            max-width: 350px;
+            height: 35vh;
+            max-height: 300px;
             display: flex;
             flex-direction: column;
             pointer-events: auto;
@@ -115,7 +115,12 @@
         }
         @media (max-width: 767px) {
             #bottom-left-controls { justify-self: center; }
-            #queue-panel { justify-self: center; margin-bottom: 8rem; }
+            #queue-panel { 
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                bottom: 8rem; 
+            }
         }
 
 
@@ -476,7 +481,6 @@
     <audio id="audio-player" crossOrigin="anonymous"></audio>
 
     <script>
-        // --- DOM Elements ---
         const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
         const audioPlayer = document.getElementById('audio-player');
         const uiContainer = document.getElementById('ui-container'), lyricsContainer = document.getElementById('lyrics-container');
@@ -490,16 +494,13 @@
         const playlistManagementModal = document.getElementById('playlist-management-modal');
         const modalOverlay = document.getElementById('modal-overlay');
         
-        // --- Audio API & DB ---
         let audioContext, analyser, source, dataArray, bufferLength;
         let db;
 
-        // --- State Management ---
         let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
         let currentStyleId = 'bars', rotation = 0, particles = [], recentLyrics = [], lyricAnimationState = {};
-        let repeatMode = 'none', isShuffled = false; // none, one, all
+        let repeatMode = 'none', isShuffled = false;
         
-        // --- Refactored Settings ---
         let globalSettings = {};
         let themeSettings = {};
 
@@ -509,9 +510,7 @@
         const defaultPalette = ['#00dfff', '#00aaff', '#0077ff', '#0044ff', '#0011ff'];
         let currentPalette = [...defaultPalette]; 
 
-        // --- Visualizer Styles ---
         const visualizerStyles = [
-            // Instrumental
             { id: 'bars', name: 'Bars', lyricsOnly: false }, { id: 'circle', name: 'Circle', lyricsOnly: false }, 
             { id: 'waveform', name: 'Wave', lyricsOnly: false }, { id: 'particles', name: 'Particles', lyricsOnly: false }, 
             { id: 'neonwave', name: 'Neon', lyricsOnly: false }, { id: 'grid', name: 'Grid', lyricsOnly: false },
@@ -522,7 +521,6 @@
             { id: 'wavemirror', name: 'Wave Mirror', lyricsOnly: false }, { id: 'vortex', name: 'Vortex', lyricsOnly: false },
             { id: 'towers', name: 'Towers', lyricsOnly: false }, { id: 'rings', name: 'Rings', lyricsOnly: false },
             { id: 'nebula', name: 'Nebula', lyricsOnly: false }, { id: 'rain', name: 'Digital Rain', lyricsOnly: false },
-            // Lyrics
             { id: 'spotlight', name: 'Spotlight', lyricsOnly: true }, { id: 'focus', name: 'Focus', lyricsOnly: true }, 
             { id: 'cascade', name: 'Cascade', lyricsOnly: true }, { id: 'karaoke', name: 'Karaoke', lyricsOnly: true },
             { id: 'typewriter', name: 'Typewriter', lyricsOnly: true }, { id: 'reflection', name: 'Reflection', lyricsOnly: true },
@@ -533,7 +531,6 @@
             { id: 'handwritten', name: 'Handwritten', lyricsOnly: true }, { id: 'mosaic', name: 'Mosaic', lyricsOnly: true },
         ];
 
-        // --- SVG Icons ---
         const micSVG = `<svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"/></svg>`;
         const musicNoteSVG = `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
         const playlistSVG = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z"></path></svg>`;
@@ -545,7 +542,6 @@
         const deleteSVG = `<svg class="w-5 h-5 fill-current text-red-500/70 hover:text-red-500" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>`;
         const playSVG = `<svg class="w-5 h-5 fill-current text-green-400/70 hover:text-green-400" viewBox="0 0 20 20"><path d="M4.018 15.59a1.5 1.5 0 002.122.149l9.362-6.554a1.5 1.5 0 000-2.368L6.14 3.263A1.5 1.5 0 004.018 4.41v11.18z"></path></svg>`;
 
-        // --- Initialization ---
         async function initializeApp() {
             document.title = "Syvisuals";
             setupPWA();
@@ -557,12 +553,11 @@
             await loadLibraryFromDB();
             renderThemeList();
             setupEventListeners();
-            updateStyle(currentStyleId); // Apply initial settings
+            updateStyle(currentStyleId);
             draw();
         }
 
         function buildUI() {
-            // Player
             playbackControls.innerHTML = `
                 <div class="custom-player">
                     <button id="shuffle-btn" class="playback-btn">${shuffleSVG}</button>
@@ -584,7 +579,6 @@
                     </div>
                 </div>`;
             
-            // Settings controls
             settingsModal.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Settings</h2>
@@ -592,7 +586,6 @@
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
-                <!-- Theme Specific Controls -->
                 <div id="theme-settings-container">
                     <div id="controls-for-bars" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Bar Controls</h3><div class="control-grid"><div class="control-item"><label>Width</label><input type="range" data-setting="barWidth" min="1" max="15" step="1"></div><div class="control-item"><label>Spacing</label><input type="range" data-setting="barSpacing" min="1" max="10" step="1"></div></div></div>
                     <div id="controls-for-circle" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Circle Controls</h3><div class="control-grid"><div class="control-item"><label>Radius</label><input type="range" data-setting="circleRadius" min="50" max="200" step="1"></div><div class="control-item"><label>Rotation</label><input type="range" data-setting="circleRotationSpeed" min="0" max="0.01" step="0.0005"></div></div></div>
@@ -602,7 +595,6 @@
                     <div id="controls-for-spotlight" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Spotlight Controls</h3><div class="control-grid"><div class="control-item"><label>Beam Size</label><input type="range" data-setting="beamSize" min="5" max="50" step="1"></div><div class="control-item"><label>Intensity</label><input type="range" data-setting="beamIntensity" min="0.1" max="1" step="0.05"></div></div></div>
                     <button id="reset-theme-settings-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm hidden">Reset Theme Settings</button>
                 </div>
-                <!-- Global Controls -->
                 <div class="mt-4 pt-4 border-t border-gray-700">
                     <h3 class="text-lg font-bold mb-3">Global Controls</h3>
                     <div class="control-grid">
@@ -628,10 +620,9 @@
             dataArray = new Uint8Array(bufferLength);
         }
 
-        // --- Database (IndexedDB) ---
         function setupDatabase() {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open('SyvisualsDB', 5); // Version bump for new stores
+                const request = indexedDB.open('SyvisualsDB', 5);
                 request.onerror = event => {
                     console.error("Database error:", event.target.errorCode);
                     reject("Database error: " + event.target.errorCode);
@@ -701,7 +692,6 @@
             }
         }
 
-        // --- Drawing & Styles ---
         function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         function draw() {
             requestAnimationFrame(draw);
