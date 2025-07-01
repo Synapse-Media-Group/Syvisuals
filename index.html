@@ -1,0 +1,2863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syvisuals</title>
+    <meta name="theme-color" content="#0a0a0a"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/00dfff/0a0a0a?text=SyV">
+    <link rel="manifest" id="manifest">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #00dfff;
+            --dark-color: #0a0a0a;
+            --light-text: #e0e0e0;
+            --dim-text: #a0a0a0;
+        }
+        html {
+            font-size: 16px; /* Base font size for UI scaling */
+        }
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: var(--dark-color);
+            color: var(--light-text);
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+        }
+        input, textarea {
+            user-select: auto;
+            -webkit-user-select: auto;
+            -ms-user-select: auto;
+        }
+        #visualizer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        #ui-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas:
+                "header"
+                "main"
+                "settings";
+            padding: 1rem;
+            gap: 1rem;
+            pointer-events: none;
+            transition: opacity 0.5s ease-in-out;
+        }
+        @media (min-width: 768px) {
+            #ui-container {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto 1fr auto;
+                grid-template-areas:
+                    "header header"
+                    "main main"
+                    "settings .";
+                padding: 2rem;
+                gap: 1.5rem;
+            }
+        }
+        #ui-container > * { pointer-events: auto; }
+        .hidden { display: none !important; }
+        .opacity-0 { opacity: 0; pointer-events: none; }
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        
+        .file-input-hidden {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border-width: 0 !important;
+        }
+
+        #bottom-left-controls { grid-area: settings; align-self: end; display: flex; gap: 0.5rem;}
+        #queue-panel { 
+            position: fixed;
+            bottom: 8rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 650px;
+            height: 30vh;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        @media (max-width: 767px) {
+            #bottom-left-controls { justify-self: center; }
+            #queue-panel { justify-self: center; margin-bottom: 8rem; }
+        }
+
+
+        #now-playing-panel {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            pointer-events: auto;
+            transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 50;
+        }
+        #now-playing-art {
+             transition: width 0.3s ease, height 0.3s ease;
+        }
+        #now-playing-panel.popup #now-playing-art {
+            width: 192px;
+            height: 192px;
+        }
+        #now-playing-panel.popup #now-playing-info {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .dimmed { opacity: 0.5; }
+
+        .scrollable-list { overflow-y: auto; flex-grow: 1; }
+        .scrollable-list::-webkit-scrollbar { width: 8px; }
+        .scrollable-list::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
+        .scrollable-list::-webkit-scrollbar-thumb { background: rgba(0, 223, 255, 0.4); border-radius: 4px; }
+        .scrollable-list::-webkit-scrollbar-thumb:hover { background: rgba(0, 223, 255, 0.6); }
+
+        .list-item { display: flex; align-items: center; padding: 0.5rem 0.75rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+        .list-item:hover { background-color: rgba(0, 223, 255, 0.1); }
+        .list-item.active { background-color: rgba(0, 223, 255, 0.2); font-weight: bold; }
+        .list-item svg { width: 18px; height: 18px; margin-right: 0.75rem; flex-shrink: 0; fill: var(--dim-text); }
+        .list-item.active svg { fill: var(--primary-color); }
+        .list-item .song-title-container, .list-item .playlist-name-container {
+            white-space: nowrap;
+            overflow: hidden;
+            flex-grow: 1;
+        }
+        .list-item .song-title-container .song-title, .list-item .playlist-name-container .playlist-name {
+             display: inline-block;
+        }
+        .list-item:hover .song-title-container .song-title, .list-item:hover .playlist-name-container .playlist-name {
+            animation: marquee 10s linear 3s infinite;
+        }
+        @keyframes marquee {
+            0%   { transform: translateX(0%); }
+            100% { transform: translateX(calc(-100% + 200px)); }
+        }
+        .item-actions {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            padding-left: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .list-item:hover .item-actions {
+            opacity: 1;
+        }
+
+        .modal { 
+            position: fixed; top: 50%; left: 50%; 
+            width: 90%; max-width: 600px; 
+            max-height: 80vh; display: flex; flex-direction: column;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #theme-list-modal {
+            top: 2rem;
+            transform: translate(-50%, 0);
+        }
+        .modal:not(.opacity-0) {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            pointer-events: auto;
+        }
+        #theme-list-modal:not(.opacity-0) {
+            transform: translate(-50%, 0) scale(1);
+        }
+        
+        .control-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .control-item label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--dim-text); }
+        .control-item input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; }
+        .control-item input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: var(--primary-color); cursor: pointer; border-radius: 50%; border: 2px solid var(--dark-color); box-shadow: 0 0 10px var(--primary-color); }
+
+        #lyrics-container {
+            position: absolute; bottom: 25%; left: 50%; transform: translateX(-50%);
+            width: 80%; max-width: 900px; text-align: center;
+            font-weight: bold; color: white; text-shadow: 0 0 15px black, 0 0 8px black;
+            transition: all 0.5s ease-in-out; pointer-events: none;
+            opacity: 0;
+        }
+        #lyrics-container.show {
+            opacity: 1;
+        }
+
+        #playback-controls { 
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); 
+            width: 90%; max-width: 650px; 
+            transition: opacity 0.5s ease-in-out; pointer-events: auto; 
+        }
+        .custom-player { 
+            background: rgba(10, 10, 10, 0.7); backdrop-filter: blur(15px); 
+            border: 1px solid rgba(0, 223, 255, 0.2); border-radius: 50px; 
+            padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; 
+            box-shadow: 0 0 25px rgba(0, 223, 255, 0.1); 
+        }
+        .playback-btn { background: transparent; border: none; cursor: pointer; fill: var(--dim-text); transition: all 0.2s; }
+        .playback-btn:hover { fill: var(--primary-color); transform: scale(1.1); }
+        .playback-btn.active { fill: var(--primary-color); text-shadow: 0 0 10px var(--primary-color); }
+        .play-pause-btn { background-color: var(--primary-color); border-radius: 50%; width: 50px; height: 50px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 20px var(--primary-color); }
+        .play-pause-btn:hover { transform: scale(1.1); box-shadow: 0 0 30px var(--primary-color); }
+        .play-pause-btn svg { fill: var(--dark-color); }
+        .progress-container { flex-grow: 1; display: flex; align-items: center; gap: 1rem; }
+        .time-display { font-size: 0.8rem; color: var(--dim-text); min-width: 40px; text-align: center; }
+        .progress-bar-wrapper { flex-grow: 1; height: 6px; background-color: rgba(255, 255, 255, 0.1); border-radius: 3px; cursor: pointer; position: relative; }
+        #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary-color), #007f7f); border-radius: 3px; position: relative; }
+        #progress-bar::after { content: ''; position: absolute; right: -6px; top: -4px; width: 14px; height: 14px; background-color: var(--primary-color); border-radius: 50%; box-shadow: 0 0 10px var(--primary-color); }
+
+        #playback-controls.autohide {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out 0.5s; /* Fade out after 0.5s delay */
+        }
+        #playback-controls.autohide:hover {
+            opacity: 1;
+            transition-delay: 0s; /* Fade in instantly */
+        }
+
+        .toast {
+            position: fixed;
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+            pointer-events: none;
+            z-index: 200;
+            text-shadow: 0 0 5px black;
+        }
+        #now-playing-toast {
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        #theme-toast {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        #playlist-management-modal { max-width: 800px; z-index: 100; }
+        #playlist-image-label { width: 150px; height: 150px; }
+        
+        #playlist-cropper-container {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 130;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cropper-modal-content {
+            width: 90vw;
+            max-width: 600px;
+        }
+        .cropper-image-wrapper {
+            height: 60vh;
+            max-height: 500px;
+            background-color: #000;
+        }
+        #playlist-cropper-image {
+            display: block;
+            max-width: 100%;
+        }
+
+        button:active {
+            transform: scale(0.95);
+            transition: transform 0.1s;
+        }
+
+    </style>
+</head>
+<body class="bg-black">
+    <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden"></div>
+    <canvas id="visualizer"></canvas>
+
+    <div id="now-playing-panel" class="glass-panel !p-3">
+        <div id="now-playing-info" class="flex items-center gap-4 transition-all duration-500">
+            <label for="song-art-input" class="cursor-pointer">
+                <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
+            </label>
+            <div class="overflow-hidden">
+                <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
+                <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="lyrics-container"></div>
+    <div id="now-playing-toast" class="toast"></div>
+    <div id="theme-toast" class="toast"></div>
+
+    <div id="ui-container">
+        <div id="bottom-left-controls">
+             <button id="library-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
+                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
+             </button>
+             <button id="themes-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
+                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 3.293A1 1 0 0118 4v12a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h1.293A1 1 0 016 3.707L10 7.414l4-3.707a1 1 0 011.293-.414zM10 9.414l-6-5.5V16h12V3.914l-6 5.5z"></path><path d="M10 12.586l4-3.707V16h-2v-2.586l-2 1.833-2-1.833V16H4v-7.121l4 3.707a1 1 0 001.293-.001z"></path></svg>
+             </button>
+             <button id="settings-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
+                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-1.57 1.996A1.532 1.532 0 013.17 7.49c-1.56.38-1.56 2.6 0 2.98a1.532 1.532 0 01.948 2.286c-.836 1.372.734 2.942 1.996 1.57A1.532 1.532 0 017.49 16.83c.38 1.56 2.6 1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 1.57-1.996A1.532 1.532 0 0116.83 12.51c1.56-.38 1.56-2.6 0-2.98a1.532 1.532 0 01-.948-2.286c.836-1.372-.734-2.942-1.996-1.57A1.532 1.532 0 0111.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z"></path></svg>
+             </button>
+        </div>
+    </div>
+    
+    <div id="modal-container" class="z-[100]">
+        <div id="full-library-modal" class="modal glass-panel opacity-0">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Library</h2>
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <button id="add-btn" class="p-2 rounded-full bg-cyan-500/80 hover:bg-cyan-500 transition-all">
+                            <svg class="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <div id="add-menu" class="absolute right-0 bottom-full mb-2 w-48 bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg hidden">
+                            <button id="add-audio-btn" class="w-full text-left px-4 py-2 hover:bg-cyan-500/20">Add Audio</button>
+                            <button id="add-lyrics-btn" class="w-full text-left px-4 py-2 hover:bg-cyan-500/20">Add Lyrics</button>
+                            <button id="import-playlist-btn" class="w-full text-left px-4 py-2 hover:bg-cyan-500/20">Import from Zip</button>
+                        </div>
+                    </div>
+                    <button id="close-library-btn" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="flex gap-4 border-b border-gray-700 mb-2">
+                <button class="tab-btn active py-2 px-4" data-tab="songs">Songs</button>
+                <button class="tab-btn py-2 px-4" data-tab="playlists">Playlists</button>
+            </div>
+            <div id="songs-tab" class="tab-content scrollable-list flex-grow"></div>
+            <div id="playlists-tab" class="tab-content hidden flex-grow">
+                <button id="create-playlist-btn" class="w-full text-center py-2 px-4 bg-cyan-500/80 hover:bg-cyan-500 rounded-lg mb-2">Create New Playlist</button>
+                <div id="playlists-list" class="scrollable-list"></div>
+            </div>
+            <input type="file" id="audio-file-input" accept="audio/*" multiple class="file-input-hidden">
+            <input type="file" id="lyrics-file-input" accept=".json" class="file-input-hidden">
+            <input type="file" id="import-playlist-input" accept=".zip" class="file-input-hidden">
+            <input type="file" id="song-art-input" accept="image/*" class="file-input-hidden">
+        </div>
+        <div id="settings-modal" class="modal glass-panel opacity-0">
+            </div>
+        
+        <div id="theme-list-modal" class="modal glass-panel opacity-0">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Select Theme</h2>
+                 <button id="close-theme-list-btn" class="text-gray-400 hover:text-white transition-colors">
+                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                 </button>
+            </div>
+            <div id="theme-list-container" class="scrollable-list flex-grow">
+                 </div>
+        </div>
+    
+        <div id="playlist-management-modal" class="modal glass-panel opacity-0" style="z-index: 110;">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="playlist-manager-title" class="text-2xl font-bold">Edit Playlist</h2>
+                 <button id="close-playlist-manager-btn" class="text-gray-400 hover:text-white transition-colors">
+                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                 </button>
+            </div>
+            <div class="flex gap-6">
+                <div class="flex-shrink-0 w-1/3 flex flex-col items-center gap-4">
+                    <label for="playlist-image-input" id="playlist-image-label" class="relative group bg-gray-900/50 rounded-lg w-full aspect-square flex items-center justify-center cursor-pointer">
+                        <img id="playlist-image" src="" class="w-full h-full object-cover rounded-lg">
+                        <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span class="text-white font-bold">Change Image</span>
+                        </div>
+                    </label>
+                    <input type="file" id="playlist-image-input" class="file-input-hidden" accept="image/*">
+                    <button id="play-playlist-from-editor-btn" class="w-full text-center py-2 px-4 bg-green-600/80 hover:bg-green-600 rounded-lg flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M4.018 15.59a1.5 1.5 0 002.122.149l9.362-6.554a1.5 1.5 0 000-2.368L6.14 3.263A1.5 1.5 0 004.018 4.41v11.18z"></path></svg>
+                        <span>Play Playlist</span>
+                    </button>
+                    <button id="export-playlist-btn" class="w-full text-center py-2 px-4 bg-blue-600/80 hover:bg-blue-600 rounded-lg">Export Playlist</button>
+                    <button id="delete-playlist-btn" class="w-full text-center py-2 px-4 bg-red-600/80 hover:bg-red-600 rounded-lg">Delete Playlist</button>
+                </div>
+    
+                <div class="flex-grow flex flex-col gap-4">
+                    <input type="text" id="playlist-name-input" class="text-2xl font-bold bg-transparent border-b-2 border-transparent focus:border-cyan-500 focus:outline-none p-1 -ml-1">
+                    <textarea id="playlist-description-input" rows="2" class="text-sm bg-gray-700/30 border border-gray-600 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Add a description..."></textarea>
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-bold">Songs</h3>
+                        <button id="add-songs-to-playlist-btn" class="px-3 py-1 rounded-lg bg-cyan-500/80 hover:bg-cyan-500 text-sm">Add Songs</button>
+                    </div>
+                    <div id="playlist-songs-list" class="scrollable-list flex-grow bg-black/20 rounded-lg p-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="add-songs-modal" class="modal glass-panel opacity-0" style="z-index: 120;">
+             <h2 class="text-2xl font-bold mb-4">Add Songs to Playlist</h2>
+             <div id="add-songs-list" class="scrollable-list flex-grow bg-black/20 rounded-lg p-2 mb-4"></div>
+             <div class="flex justify-end gap-4">
+                 <button id="cancel-add-songs-btn" class="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500">Cancel</button>
+                 <button id="confirm-add-songs-btn" class="px-4 py-2 rounded-lg bg-cyan-500 text-black">Add Selected</button>
+             </div>
+        </div>
+
+        <div id="playlist-cropper-container" class="hidden">
+             <div class="cropper-modal-content glass-panel">
+                 <h2 class="text-xl font-bold mb-4">Crop Image</h2>
+                 <div class="cropper-image-wrapper">
+                     <img id="playlist-cropper-image" src="">
+                 </div>
+                 <div class="flex justify-end gap-4 mt-4">
+                     <button id="cancel-crop-btn" class="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500 transition-all">Cancel</button>
+                     <button id="confirm-crop-btn" class="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-all">Save Image</button>
+                 </div>
+             </div>
+        </div>
+    
+        <div id="custom-prompt-modal" class="modal glass-panel opacity-0" style="max-width: 400px; z-index: 120;">
+            <h2 id="prompt-title" class="text-xl font-bold mb-4"></h2>
+            <input type="text" id="prompt-input" class="bg-gray-700/50 border border-gray-600 rounded-lg p-2 w-full text-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+            <div class="flex justify-end gap-4 mt-6">
+                <button id="prompt-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500 transition-all">Cancel</button>
+                <button id="prompt-confirm-btn" class="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-all">Create</button>
+            </div>
+        </div>
+        
+        <div id="custom-dialog-modal" class="modal glass-panel opacity-0" style="max-width: 450px; z-index: 120;">
+            <h2 id="dialog-title" class="text-xl font-bold mb-4"></h2>
+            <p id="dialog-message" class="text-gray-300 mb-6"></p>
+            <div id="dialog-buttons" class="flex justify-end gap-4">
+                 </div>
+        </div>
+    </div>
+
+    <div id="queue-panel" class="glass-panel">
+        <h2 class="text-xl font-bold mb-4">Up Next</h2>
+        <div id="queue-items" class="scrollable-list flex-grow"></div>
+        <button id="clear-queue-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm">Clear Queue</button>
+    </div>
+
+    <div id="playback-controls"></div>
+    <audio id="audio-player" crossOrigin="anonymous"></audio>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
+        const audioPlayer = document.getElementById('audio-player');
+        const uiContainer = document.getElementById('ui-container'), lyricsContainer = document.getElementById('lyrics-container');
+        const queueItemsContainer = document.getElementById('queue-items');
+        const settingsBtn = document.getElementById('settings-btn'), settingsModal = document.getElementById('settings-modal');
+        const libraryBtn = document.getElementById('library-btn'), fullLibraryModal = document.getElementById('full-library-modal');
+        const themesBtn = document.getElementById('themes-btn'), themeListModal = document.getElementById('theme-list-modal');
+        const playbackControls = document.getElementById('playback-controls');
+        const nowPlayingToast = document.getElementById('now-playing-toast');
+        const themeToast = document.getElementById('theme-toast');
+        const playlistManagementModal = document.getElementById('playlist-management-modal');
+        const modalOverlay = document.getElementById('modal-overlay');
+        
+        // --- Audio API & DB ---
+        let audioContext, analyser, source, dataArray, bufferLength;
+        let db;
+
+        // --- State Management ---
+        let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
+        let currentStyleId = 'bars', rotation = 0, particles = [], recentLyrics = [], lyricAnimationState = {};
+        let repeatMode = 'none', isShuffled = false; // none, one, all
+        
+        // --- Refactored Settings ---
+        let globalSettings = {};
+        let themeSettings = {};
+
+        let nowPlayingTimeout, themeTimeout;
+        let activePlaylistId = null;
+        let cropper;
+        const defaultPalette = ['#00dfff', '#00aaff', '#0077ff', '#0044ff', '#0011ff'];
+        let currentPalette = [...defaultPalette]; 
+
+        // --- Visualizer Styles ---
+        const visualizerStyles = [
+            // Instrumental
+            { id: 'bars', name: 'Bars', lyricsOnly: false }, { id: 'circle', name: 'Circle', lyricsOnly: false }, 
+            { id: 'waveform', name: 'Wave', lyricsOnly: false }, { id: 'particles', name: 'Particles', lyricsOnly: false }, 
+            { id: 'neonwave', name: 'Neon', lyricsOnly: false }, { id: 'grid', name: 'Grid', lyricsOnly: false },
+            { id: 'tunnel', name: 'Tunnel', lyricsOnly: false }, { id: 'symmetry', name: 'Symmetry', lyricsOnly: false },
+            { id: 'orbs', name: 'Orbs', lyricsOnly: false }, { id: 'starfield', name: 'Starfield', lyricsOnly: false },
+            { id: 'spectrum', name: 'Spectrum Orb', lyricsOnly: false }, { id: 'flowers', name: 'Flowers', lyricsOnly: false },
+            { id: 'constellation', name: 'Constellation', lyricsOnly: false }, { id: 'cityscape', name: 'Cityscape', lyricsOnly: false },
+            { id: 'wavemirror', name: 'Wave Mirror', lyricsOnly: false }, { id: 'vortex', name: 'Vortex', lyricsOnly: false },
+            { id: 'towers', name: 'Towers', lyricsOnly: false }, { id: 'rings', name: 'Rings', lyricsOnly: false },
+            { id: 'nebula', name: 'Nebula', lyricsOnly: false }, { id: 'rain', name: 'Digital Rain', lyricsOnly: false },
+            // Lyrics
+            { id: 'spotlight', name: 'Spotlight', lyricsOnly: true }, { id: 'focus', name: 'Focus', lyricsOnly: true }, 
+            { id: 'cascade', name: 'Cascade', lyricsOnly: true }, { id: 'karaoke', name: 'Karaoke', lyricsOnly: true },
+            { id: 'typewriter', name: 'Typewriter', lyricsOnly: true }, { id: 'reflection', name: 'Reflection', lyricsOnly: true },
+            { id: 'echo', name: 'Echo', lyricsOnly: true }, { id: 'glitch', name: 'Glitch', lyricsOnly: true },
+            { id: 'kinetic', name: 'Kinetic', lyricsOnly: true }, { id: 'scan', name: 'Scanlight', lyricsOnly: true },
+            { id: 'float', name: 'Floating', lyricsOnly: true }, { id: 'ink', name: 'Ink Bleed', lyricsOnly: true },
+            { id: 'subway', name: 'Subway Sign', lyricsOnly: true }, { id: 'warp', name: 'Warp Speed', lyricsOnly: true },
+            { id: 'handwritten', name: 'Handwritten', lyricsOnly: true }, { id: 'mosaic', name: 'Mosaic', lyricsOnly: true },
+        ];
+
+        // --- SVG Icons ---
+        const micSVG = `<svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"/></svg>`;
+        const musicNoteSVG = `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+        const playlistSVG = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 15a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1z"></path></svg>`;
+        const shuffleSVG = `<svg class="w-6 h-6" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>`;
+        const repeatAllSVG = `<svg class="w-6 h-6" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>`;
+        const repeatOneSVG = `<svg class="w-6 h-6" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/></svg>`;
+        const prevSVG = `<svg class="w-6 h-6" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"></path></svg>`;
+        const nextSVG = `<svg class="w-6 h-6" viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-4.5 6l-8.5 6V6z"></path></svg>`;
+        const deleteSVG = `<svg class="w-5 h-5 fill-current text-red-500/70 hover:text-red-500" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>`;
+        const playSVG = `<svg class="w-5 h-5 fill-current text-green-400/70 hover:text-green-400" viewBox="0 0 20 20"><path d="M4.018 15.59a1.5 1.5 0 002.122.149l9.362-6.554a1.5 1.5 0 000-2.368L6.14 3.263A1.5 1.5 0 004.018 4.41v11.18z"></path></svg>`;
+
+        // --- Initialization ---
+        async function initializeApp() {
+            document.title = "Syvisuals";
+            setupPWA();
+            resizeCanvas();
+            await setupDatabase();
+            initializeDefaultSettings();
+            await loadSettingsFromDB();
+            buildUI();
+            await loadLibraryFromDB();
+            renderThemeList();
+            setupEventListeners();
+            updateStyle(currentStyleId); // Apply initial settings
+            draw();
+        }
+
+        function buildUI() {
+            // Player
+            playbackControls.innerHTML = `
+                <div class="custom-player">
+                    <button id="shuffle-btn" class="playback-btn">${shuffleSVG}</button>
+                    <button id="prev-btn" class="playback-btn">${prevSVG}</button>
+                    <button id="play-pause-btn" class="play-pause-btn">
+                        <svg id="play-icon" class="w-8 h-8" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+                        <svg id="pause-icon" class="w-8 h-8 hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+                    </button>
+                    <button id="next-btn" class="playback-btn">${nextSVG}</button>
+                    <button id="repeat-btn" class="playback-btn">${repeatAllSVG}</button>
+                    <div class="flex-grow progress-container">
+                        <div id="current-time" class="time-display">0:00</div>
+                        <div class="progress-bar-wrapper"><div id="progress-bar"></div></div>
+                        <div id="duration" class="time-display">0:00</div>
+                    </div>
+                    <div class="volume-control flex items-center gap-2">
+                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path></svg>
+                         <input type="range" id="volume-slider" class="control-item w-20 h-1" min="0" max="1" value="1" step="0.01">
+                    </div>
+                </div>`;
+            
+            // Settings controls
+            settingsModal.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Settings</h2>
+                    <button id="close-settings-btn" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <!-- Theme Specific Controls -->
+                <div id="theme-settings-container">
+                    <div id="controls-for-bars" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Bar Controls</h3><div class="control-grid"><div class="control-item"><label>Width</label><input type="range" data-setting="barWidth" min="1" max="15" step="1"></div><div class="control-item"><label>Spacing</label><input type="range" data-setting="barSpacing" min="1" max="10" step="1"></div></div></div>
+                    <div id="controls-for-circle" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Circle Controls</h3><div class="control-grid"><div class="control-item"><label>Radius</label><input type="range" data-setting="circleRadius" min="50" max="200" step="1"></div><div class="control-item"><label>Rotation</label><input type="range" data-setting="circleRotationSpeed" min="0" max="0.01" step="0.0005"></div></div></div>
+                    <div id="controls-for-waveform" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Waveform Controls</h3><div class="control-grid grid-cols-1"><div class="control-item"><label>Thickness</label><input type="range" data-setting="waveThickness" min="1" max="10" step="1"></div></div></div>
+                    <div id="controls-for-neonwave" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Neon Controls</h3><div class="control-grid grid-cols-1"><div class="control-item"><label>Thickness</label><input type="range" data-setting="neonThickness" min="1" max="10" step="1"></div></div></div>
+                    <div id="controls-for-particles" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Particle Controls</h3><div class="control-grid"><div class="control-item"><label>Size</label><input type="range" data-setting="particleSize" min="1" max="10" step="1"></div><div class="control-item"><label>Speed</label><input type="range" data-setting="particleSpeed" min="0.1" max="5" step="0.1"></div></div></div>
+                    <div id="controls-for-spotlight" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Spotlight Controls</h3><div class="control-grid"><div class="control-item"><label>Beam Size</label><input type="range" data-setting="beamSize" min="5" max="50" step="1"></div><div class="control-item"><label>Intensity</label><input type="range" data-setting="beamIntensity" min="0.1" max="1" step="0.05"></div></div></div>
+                    <button id="reset-theme-settings-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm hidden">Reset Theme Settings</button>
+                </div>
+                <!-- Global Controls -->
+                <div class="mt-4 pt-4 border-t border-gray-700">
+                    <h3 class="text-lg font-bold mb-3">Global Controls</h3>
+                    <div class="control-grid">
+                        <div class="control-item"><label>Sensitivity</label><input type="range" data-setting="sensitivity" data-is-global="true" min="0.1" max="3" value="1" step="0.1"></div>
+                        <div class="control-item"><label>Smoothing</label><input type="range" data-setting="smoothing" data-is-global="true" min="0" max="0.99" value="0.85" step="0.01"></div>
+                        <div class="control-item col-span-2"><label>UI Scale</label><input type="range" data-setting="uiScale" data-is-global="true" min="0.8" max="1.5" value="1" step="0.05"></div>
+                    </div>
+                </div>
+                <p class="text-center text-xs text-gray-500 mt-6">made with love from the Synapse Media Team &nbsp;💕</p>
+            `;
+        }
+        
+        function setupAudioContext() {
+            if (audioContext) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.smoothingTimeConstant = globalSettings.smoothing;
+            source = audioContext.createMediaElementSource(audioPlayer);
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            analyser.fftSize = 2048;
+            bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+        }
+
+        // --- Database (IndexedDB) ---
+        function setupDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('SyvisualsDB', 5); // Version bump for new stores
+                request.onerror = event => {
+                    console.error("Database error:", event.target.errorCode);
+                    reject("Database error: " + event.target.errorCode);
+                };
+                request.onsuccess = event => {
+                    db = event.target.result;
+                    resolve();
+                };
+                request.onupgradeneeded = event => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('songs')) {
+                        db.createObjectStore('songs', { keyPath: 'id', autoIncrement: true });
+                    }
+                    if (!db.objectStoreNames.contains('lyrics')) {
+                        db.createObjectStore('lyrics', { keyPath: 'identifier' });
+                    }
+                    if (!db.objectStoreNames.contains('playlists')) {
+                        db.createObjectStore('playlists', { keyPath: 'id', autoIncrement: true });
+                    }
+                    if (!db.objectStoreNames.contains('settings')) {
+                         db.createObjectStore('settings', { keyPath: 'id' });
+                    }
+                };
+            });
+        }
+
+        async function loadLibraryFromDB() {
+            try {
+                const transaction = db.transaction(['songs', 'lyrics', 'playlists'], 'readonly');
+                const songStore = transaction.objectStore('songs');
+                const lyricsStore = transaction.objectStore('lyrics');
+                const playlistStore = transaction.objectStore('playlists');
+
+                const songsRequest = songStore.getAll();
+                const lyricsRequest = lyricsStore.getAll();
+                const playlistsRequest = playlistStore.getAll();
+
+                const songs = await new Promise((resolve, reject) => {
+                    songsRequest.onsuccess = e => resolve(e.target.result);
+                    songsRequest.onerror = e => reject(e.target.error);
+                });
+                
+                const lyrics = await new Promise((resolve, reject) => {
+                    lyricsRequest.onsuccess = e => resolve(e.target.result);
+                    lyricsRequest.onerror = e => reject(e.target.error);
+                });
+                
+                playlists = await new Promise((resolve, reject) => {
+                    playlistsRequest.onsuccess = e => resolve(e.target.result);
+                    playlistsRequest.onerror = e => reject(e.target.error);
+                });
+
+                lyrics.forEach(lyricData => lyricsLibrary.set(lyricData.identifier, lyricData.lyrics));
+                
+                library = songs.map(song => ({
+                    ...song,
+                    url: URL.createObjectURL(song.blob),
+                    lyrics: lyricsLibrary.get(song.originalName) || null,
+                    art: song.art || null,
+                    artist: song.artist || 'Unknown Artist'
+                }));
+                
+                renderFullLibrary();
+                renderPlaylists();
+            } catch (error) {
+                console.error("Failed to load library from DB:", error);
+            }
+        }
+
+        // --- Drawing & Styles ---
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        function draw() {
+            requestAnimationFrame(draw);
+            if (!analyser) return;
+
+            const currentTheme = themeSettings[currentStyleId] || {};
+            
+            if (['waveform', 'neonwave', 'tunnel', 'symmetry', 'wavemirror', 'vortex', 'towers', 'rings', 'nebula'].includes(currentStyleId)) {
+                analyser.getByteTimeDomainData(dataArray);
+            } else {
+                analyser.getByteFrequencyData(dataArray);
+            }
+
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            switch (currentStyleId) {
+                case 'bars': drawBars(currentTheme); break;
+                case 'circle': drawCircle(currentTheme); break;
+                case 'waveform': drawWaveform(currentTheme); break;
+                case 'spotlight': drawSpotlight(currentTheme); break;
+                case 'particles': drawParticles(currentTheme); break;
+                case 'neonwave': drawNeonWave(currentTheme); break;
+                case 'focus': drawFocus(); break;
+                case 'cascade': drawCascade(); break;
+                case 'grid': drawGrid(); break;
+                case 'tunnel': drawTunnel(); break;
+                case 'symmetry': drawSymmetry(); break;
+                case 'orbs': drawOrbs(); break;
+                case 'starfield': drawStarfield(); break;
+                case 'karaoke': drawKaraoke(); break;
+                case 'reflection': drawReflection(); break;
+                case 'typewriter': drawWaveform(currentTheme, 1, 'rgba(0, 223, 255, 0.2)'); break; 
+                case 'spectrum': drawSpectrumOrb(); break;
+                case 'flowers': drawFrequencyFlowers(); break;
+                case 'constellation': drawAudioConstellation(); break;
+                case 'cityscape': drawRhythmicCityscape(); break;
+                case 'wavemirror': drawWaveformMirror(); break;
+                case 'vortex': drawParticleVortex(); break;
+                case 'towers': drawEqualizerTowers(); break;
+                case 'rings': drawChromaticRings(); break;
+                case 'nebula': drawBassNebula(); break;
+                case 'rain': drawDigitalRain(); break;
+                case 'echo': drawEchoingText(); break;
+                case 'glitch': drawGlitchText(); break;
+                case 'kinetic': drawKineticType(); break;
+                case 'scan': drawSpotlightScan(); break;
+                case 'float': drawFloatingWords(); break;
+                case 'ink': drawInkBleed(); break;
+                case 'subway': drawSubwaySign(); break;
+                case 'warp': drawWarpSpeedLyrics(); break;
+                case 'handwritten': drawHandwritten(); break;
+                case 'mosaic': drawTextMosaic(); break;
+            }
+        }
+        function drawBars(theme) {
+            const barWidth = theme.barWidth || 5;
+            const barSpacing = theme.barSpacing || 2;
+            const barCount = Math.floor(canvas.width / (barWidth + barSpacing));
+            const startX = (canvas.width - (barCount * (barWidth + barSpacing))) / 2;
+            for (let i = 0; i < barCount; i++) {
+                const dataIndex = Math.floor(Math.pow(i / barCount, 2) * (bufferLength * 0.8));
+                const barHeight = Math.pow(dataArray[dataIndex] / 255, 2) * canvas.height * globalSettings.sensitivity;
+                ctx.fillStyle = currentPalette[i % currentPalette.length];
+                ctx.fillRect(startX + i * (barWidth + barSpacing), canvas.height - barHeight, barWidth, barHeight);
+            }
+        }
+        function drawCircle(theme, dimFactor = 1) {
+            const circleRadius = theme.circleRadius || 100;
+            const rotationSpeed = theme.circleRotationSpeed || 0.001;
+            const centerX = canvas.width / 2, centerY = canvas.height / 2;
+            ctx.save(); ctx.translate(centerX, centerY);
+            rotation += rotationSpeed; ctx.rotate(rotation);
+            const barCount = 256;
+            for (let i = 0; i < barCount; i++) {
+                const barHeight = dataArray[i] * globalSettings.sensitivity * 0.7 * dimFactor;
+                const angle = (i / barCount) * Math.PI * 2;
+                ctx.save(); ctx.rotate(angle);
+                const gradient = ctx.createLinearGradient(0, circleRadius, 0, circleRadius + barHeight);
+                gradient.addColorStop(0, `${currentPalette[0]}b3`);
+                gradient.addColorStop(1, `${currentPalette[1]}b3`);
+                ctx.fillStyle = gradient; ctx.fillRect(0, circleRadius, 2, barHeight);
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+        function drawWaveform(theme, thickness = theme.waveThickness || 2, color = currentPalette[0]) {
+            ctx.lineWidth = thickness; ctx.strokeStyle = color; ctx.beginPath();
+            const sliceWidth = canvas.width * 1.0 / bufferLength; let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0; const y = v * canvas.height / 2;
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            ctx.lineTo(canvas.width, canvas.height / 2); ctx.stroke();
+        }
+        function drawNeonWave(theme) {
+            ctx.shadowColor = currentPalette[1];
+            ctx.shadowBlur = 15;
+            drawWaveform(theme, theme.neonThickness || 3, currentPalette[0]);
+            ctx.shadowBlur = 0;
+        }
+        function drawParticles(theme) {
+            const particleSize = theme.particleSize || 3;
+            const particleSpeed = theme.particleSpeed || 1.5;
+            const bass = dataArray.slice(0, bufferLength / 16).reduce((a, b) => a + b, 0) / (bufferLength / 16);
+            const kick = bass / 255 > 0.95;
+            if (particles.length < 200) {
+                for (let i = 0; i < 5; i++) particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, vx: (Math.random() - 0.5) * particleSpeed, vy: (Math.random() - 0.5) * particleSpeed, life: 1, color: currentPalette[Math.floor(Math.random() * currentPalette.length)] });
+            }
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.005;
+                if (p.life <= 0) particles.splice(i, 1);
+                const avg = dataArray[Math.floor(p.x / canvas.width * bufferLength)] / 255;
+                const size = particleSize + avg * 10;
+                ctx.fillStyle = `${p.color}${Math.round(p.life * 255).toString(16).padStart(2, '0')}`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2); ctx.fill();
+                if (kick) { p.vx = (Math.random() - 0.5) * particleSpeed * 5; p.vy = (Math.random() - 0.5) * particleSpeed * 5; }
+            });
+        }
+        function drawSpotlight(theme) {
+            const beamIntensity = theme.beamIntensity || 0.5;
+            lyricsContainer.style.fontSize = "2.5rem";
+            const bass = dataArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
+            const intensity = Math.max(0, bass / 255 - 0.4) * beamIntensity;
+            if (intensity > 0.01) {
+                const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 50, canvas.width / 2, canvas.height / 2, 500 + bass * 2);
+                grad.addColorStop(0, `${currentPalette[0]}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`);
+                grad.addColorStop(1, `${currentPalette[0]}00`);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+        function drawFocus() {
+            lyricsContainer.style.fontSize = "3.5rem";
+            drawCircle(themeSettings['circle'] || {}, 0.2);
+        }
+        function drawCascade() {
+            drawParticles(themeSettings['particles'] || {});
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            ctx.textAlign = "center";
+            const maxWidth = canvas.width * 0.8;
+            recentLyrics.forEach((lyric, index) => {
+                if (index === 0) return;
+                const opacity = 0.5 - (index / recentLyrics.length) * 0.5;
+                const yPos = (canvas.height / 2) - (index * 60);
+                if (yPos < 0) return;
+                const fontSize = setAdaptiveCanvasFont(lyric.text, 'Orbitron', 24, maxWidth);
+                ctx.font = `${fontSize}px Orbitron`;
+                ctx.fillStyle = `rgba(224, 224, 224, ${opacity})`;
+                ctx.fillText(lyric.text, canvas.width / 2, yPos);
+            });
+            const mainFontSize = setAdaptiveCanvasFont(text, 'Orbitron', 40, maxWidth, 'bold');
+            ctx.fillStyle = 'white';
+            ctx.shadowColor = 'var(--primary-color)';
+            ctx.shadowBlur = 10;
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            ctx.shadowBlur = 0;
+        }
+        function drawGrid() {
+            const gridSize = 32;
+            const stepX = canvas.width / gridSize;
+            const stepY = canvas.height / gridSize;
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const dataIndex = (i * gridSize + j) % bufferLength;
+                    const value = dataArray[dataIndex] / 255;
+                    ctx.fillStyle = `${currentPalette[i % currentPalette.length]}${Math.round(value * 200).toString(16).padStart(2, '0')}`;
+                    ctx.fillRect(i * stepX, j * stepY, stepX -1, stepY - 1);
+                }
+            }
+        }
+        function drawTunnel() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const numRings = 32;
+            for (let i = numRings; i > 0; i--) {
+                const dataIndex = Math.floor((i / numRings) * bufferLength / 2);
+                const value = dataArray[dataIndex] / 255;
+                const radius = (i / numRings) * (canvas.width / 4) + value * 100;
+                ctx.strokeStyle = `${currentPalette[i % currentPalette.length]}${Math.round((1 - (i / numRings)) * 255).toString(16).padStart(2, '0')}`;
+                ctx.lineWidth = 1 + value * 5;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+        function drawSymmetry() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const sliceWidth = canvas.width / 2 / bufferLength;
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            for (let i = 0; i < 4; i++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                for (let j = 0; j < bufferLength; j++) {
+                    const v = dataArray[j] / 128.0;
+                    const y = v * 150;
+                    const x = j * sliceWidth;
+                    ctx.lineTo(x, y);
+                }
+                ctx.strokeStyle = currentPalette[i % currentPalette.length];
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        function drawOrbs(dimFactor = 1) {
+            if (particles.length === 0 || particles.length > 10) { // Initialize orbs
+                particles = [];
+                for (let i = 0; i < 10; i++) {
+                    particles.push({
+                        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+                        baseRadius: 10 + Math.random() * 20,
+                        color: currentPalette[Math.floor(Math.random() * currentPalette.length)]
+                    });
+                }
+            }
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                const dataIndex = Math.floor(p.x / canvas.width * bufferLength);
+                const value = dataArray[dataIndex] / 255;
+                const radius = p.baseRadius + value * 50;
+                ctx.fillStyle = `${p.color}${Math.round(0.5 * dimFactor * 255).toString(16).padStart(2, '0')}`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        function drawStarfield(dimFactor = 1) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / 32;
+            const speed = 1 + bass / 255 * 10;
+            if (particles.length < 300) {
+                 particles.push({
+                     x: centerX, y: centerY,
+                     angle: Math.random() * Math.PI * 2,
+                     dist: Math.random() * 10
+                 });
+            }
+            particles.forEach((p, i) => {
+                p.dist += speed * dimFactor;
+                const x = centerX + Math.cos(p.angle) * p.dist;
+                const y = centerY + Math.sin(p.angle) * p.dist;
+                if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) {
+                    p.dist = Math.random() * 10;
+                }
+                ctx.fillStyle = currentPalette[i % currentPalette.length];
+                ctx.globalAlpha = dimFactor;
+                ctx.fillRect(x, y, 2, 2);
+                ctx.globalAlpha = 1.0;
+            });
+        }
+        function drawKaraoke() {
+            drawBars(themeSettings['bars'] || {}); // Background visualizer
+            const song = library.find(s => s.id === playQueue[currentQueueIndex]?.songId);
+            if (!song || !song.lyrics) return;
+            
+            const currentTime = audioPlayer.currentTime;
+            let prevLine = "", currentLine = "", nextLine = "";
+            for (let i = 0; i < song.lyrics.length; i++) {
+                if (currentTime >= song.lyrics[i].time && (!song.lyrics[i+1] || currentTime < song.lyrics[i+1].time)) {
+                    prevLine = song.lyrics[i-1]?.text || "";
+                    currentLine = song.lyrics[i].text;
+                    nextLine = song.lyrics[i+1]?.text || "";
+                    break;
+                }
+            }
+            
+            ctx.textAlign = "center";
+            const maxWidth = canvas.width * 0.9;
+            const mainFontSize = setAdaptiveCanvasFont(currentLine, 'Orbitron', 32, maxWidth, 'bold');
+            const subFontSize = mainFontSize * 0.8;
+            
+            ctx.fillStyle = "rgba(224, 224, 224, 0.3)";
+            ctx.font = `${subFontSize}px Orbitron`;
+            ctx.fillText(prevLine, canvas.width / 2, canvas.height / 2 - (mainFontSize * 1.5));
+            ctx.fillText(nextLine, canvas.width / 2, canvas.height / 2 + (mainFontSize * 1.5));
+
+            ctx.font = `bold ${mainFontSize}px Orbitron`;
+            ctx.fillStyle = currentPalette[0] || 'var(--primary-color)';
+            ctx.shadowColor = currentPalette[0] || 'var(--primary-color)';
+            ctx.shadowBlur = 10;
+            ctx.fillText(currentLine, canvas.width / 2, canvas.height / 2);
+            ctx.shadowBlur = 0;
+        }
+        function drawReflection() {
+            drawTunnel(); // Background visualizer
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+
+            lyricsContainer.style.opacity = "0";
+            const maxWidth = canvas.width * 0.9;
+            const fontSize = setAdaptiveCanvasFont(text, 'Orbitron', 48, maxWidth);
+
+            ctx.textAlign = "center";
+            ctx.fillStyle = 'white';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(1, -1);
+            const gradient = ctx.createLinearGradient(0, 0, 0, fontSize * 1.2);
+            gradient.addColorStop(0, "rgba(255, 255, 255, 0.3)");
+            gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+            ctx.fillStyle = gradient;
+            ctx.fillText(text, 0, 0);
+            ctx.restore();
+        }
+
+        // --- NEW INSTRUMENTAL VISUALIZERS ---
+        function drawSpectrumOrb() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const bass = dataArray.slice(0, 64).reduce((a, b) => a + b, 0) / 64;
+            const radius = 50 + (bass * 2);
+            
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+            for (let i = 0; i < currentPalette.length; i++) {
+                gradient.addColorStop(i / currentPalette.length, currentPalette[i]);
+            }
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawFrequencyFlowers() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const numFlowers = 5;
+            for (let i = 0; i < numFlowers; i++) {
+                const angle = (i / numFlowers) * Math.PI * 2 + rotation;
+                const dist = 150 + i * 50;
+                const x = centerX + Math.cos(angle) * dist;
+                const y = centerY + Math.sin(angle) * dist;
+                
+                const dataIndex = Math.floor((i / numFlowers) * bufferLength);
+                const petalSize = 10 + (dataArray[dataIndex] / 255) * 40;
+                
+                ctx.fillStyle = currentPalette[i % currentPalette.length];
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+
+                for (let j = 0; j < 6; j++) {
+                    ctx.beginPath();
+                    ctx.ellipse(x, y, petalSize, petalSize / 2, j * Math.PI / 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+            rotation += 0.001;
+        }
+
+        function drawAudioConstellation() {
+            if (particles.length === 0) {
+                for (let i = 0; i < 100; i++) {
+                    particles.push({
+                        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                        baseSize: Math.random() * 2 + 1,
+                        brightness: 0,
+                        color: currentPalette[Math.floor(Math.random() * currentPalette.length)]
+                    });
+                }
+            }
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            const mids = dataArray.slice(32, 200).reduce((a, b) => a + b, 0) / (168 * 255);
+
+            particles.forEach(p => {
+                p.brightness *= 0.95; // Fade out
+                const chance = Math.random();
+                if (bass > 0.5 && chance < 0.1) p.brightness = 1;
+                if (mids > 0.4 && chance < 0.05) p.brightness = 1;
+
+                ctx.fillStyle = `${p.color}${Math.round(p.brightness * 255).toString(16).padStart(2, '0')}`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.baseSize, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.strokeStyle = `${currentPalette[0]}1A`; // Faint lines
+            for(let i = 0; i < particles.length; i++) {
+                for(let j = i + 1; j < particles.length; j++) {
+                    const dist = Math.hypot(particles[i].x - particles[j].x, particles[i].y - particles[j].y);
+                    if(dist < 100) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        function drawRhythmicCityscape() {
+            const barCount = 20;
+            const barWidth = canvas.width / barCount;
+            for (let i = 0; i < barCount; i++) {
+                const dataIndex = Math.floor((i / barCount) * (bufferLength * 0.5));
+                const barHeight = (dataArray[dataIndex] / 255) * canvas.height * 0.8;
+                ctx.fillStyle = currentPalette[i % currentPalette.length];
+                ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth, barHeight);
+            }
+        }
+
+        function drawWaveformMirror() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = currentPalette[0];
+            const sliceWidth = canvas.width / bufferLength;
+
+            for (let k = 0; k < 4; k++) {
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(k * Math.PI / 2);
+                ctx.beginPath();
+                let x = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = (dataArray[i] / 128.0) - 1.0;
+                    const y = v * 150;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                    x += sliceWidth;
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function drawParticleVortex() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+
+            if (particles.length < 300) {
+                particles.push({
+                    x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                    angle: Math.random() * Math.PI * 2,
+                    dist: Math.random() * canvas.width / 2,
+                    speed: Math.random() * 2 + 1,
+                    color: currentPalette[Math.floor(Math.random() * currentPalette.length)]
+                });
+            }
+
+            particles.forEach(p => {
+                p.dist -= p.speed + bass * 5;
+                p.angle += 0.01;
+                if (p.dist < 1) {
+                    p.dist = canvas.width / 2;
+                }
+                const x = centerX + Math.cos(p.angle) * p.dist;
+                const y = centerY + Math.sin(p.angle) * p.dist;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawEqualizerTowers() {
+            const numTowers = 16;
+            const towerWidth = canvas.width / (numTowers * 2);
+            for(let i = 0; i < numTowers; i++) {
+                const dataIndex = Math.floor((i / numTowers) * (bufferLength * 0.3));
+                const height = (dataArray[dataIndex] / 255) * canvas.height;
+                const x = i * towerWidth * 2;
+                ctx.fillStyle = `${currentPalette[i % currentPalette.length]}cc`;
+                ctx.fillRect(x, canvas.height - height, towerWidth, height);
+            }
+        }
+
+        function drawChromaticRings() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            if(bass > 0.6 && (particles.length === 0 || Date.now() - particles[particles.length - 1].time > 100)) {
+                particles.push({
+                    radius: 10,
+                    opacity: 1,
+                    color: currentPalette[Math.floor(Math.random() * currentPalette.length)],
+                    time: Date.now()
+                });
+            }
+            particles.forEach((p, i) => {
+                p.radius += 5;
+                p.opacity -= 0.02;
+                if(p.opacity <= 0) {
+                    particles.splice(i, 1);
+                }
+                ctx.strokeStyle = `${p.color}${Math.round(p.opacity * 255).toString(16).padStart(2, '0')}`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, p.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+        }
+
+        function drawBassNebula() {
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            const intensity = bass * 0.5 + 0.1;
+            const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width/2);
+            gradient.addColorStop(0, `${currentPalette[0]}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`);
+            gradient.addColorStop(1, `${currentPalette[1]}00`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawDigitalRain() {
+            const fontSize = 16;
+            ctx.font = `${fontSize}px monospace`;
+            if (particles.length === 0) {
+                const columns = Math.floor(canvas.width / fontSize);
+                for (let i = 0; i < columns; i++) {
+                    particles.push({
+                        x: i * fontSize,
+                        y: Math.random() * canvas.height,
+                        chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+                    });
+                }
+            }
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                const dataIndex = Math.floor((p.x / canvas.width) * bufferLength);
+                const speed = (dataArray[dataIndex] / 255) * 10 + 1;
+                const char = p.chars[Math.floor(Math.random() * p.chars.length)];
+                ctx.fillStyle = currentPalette[Math.floor(Math.random() * currentPalette.length)];
+                ctx.fillText(char, p.x, p.y);
+                p.y += speed;
+                if (p.y > canvas.height) p.y = 0;
+            });
+        }
+
+        // --- NEW LYRIC VISUALIZERS ---
+        function drawEchoingText() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const maxWidth = canvas.width * 0.9;
+            const fontSize = setAdaptiveCanvasFont(text, 'Orbitron', 48, maxWidth, 'bold');
+            ctx.textAlign = "center";
+            recentLyrics.forEach((lyric, index) => {
+                if (index === 0) return;
+                const opacity = 0.5 - (index / recentLyrics.length) * 0.5;
+                const yPos = (canvas.height / 2) - (index * (fontSize * 1.2));
+                const echoFontSize = fontSize * (1 - index * 0.1);
+                ctx.font = `bold ${echoFontSize}px Orbitron`;
+                ctx.fillStyle = `rgba(224, 224, 224, ${opacity})`;
+                ctx.fillText(lyric.text, canvas.width / 2, yPos);
+            });
+            ctx.font = `bold ${fontSize}px Orbitron`;
+            ctx.fillStyle = 'white';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        }
+        
+        function drawGlitchText() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            const maxWidth = canvas.width * 0.9;
+            setAdaptiveCanvasFont(text, 'Orbitron', 60, maxWidth, 'bold');
+            ctx.textAlign = "center";
+            if (bass > 0.7 && Math.random() > 0.5) {
+                const xOffset = (Math.random() - 0.5) * 20;
+                const yOffset = (Math.random() - 0.5) * 20;
+                ctx.fillStyle = `rgba(255, 0, 0, 0.5)`;
+                ctx.fillText(text, canvas.width / 2 + xOffset, canvas.height / 2 + yOffset);
+                ctx.fillStyle = `rgba(0, 255, 255, 0.5)`;
+                ctx.fillText(text, canvas.width / 2 - xOffset, canvas.height / 2 - yOffset);
+            }
+            ctx.fillStyle = 'white';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        }
+
+        function drawKineticType() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const words = text.split(' ');
+            const maxWidth = canvas.width * 0.9;
+            const fontSize = setAdaptiveCanvasFont(text, 'Orbitron', 48, maxWidth, 'bold');
+            ctx.font = `bold ${fontSize}px Orbitron`;
+            ctx.textAlign = "center";
+            const totalWidth = ctx.measureText(text).width;
+            let currentX = canvas.width / 2 - totalWidth / 2;
+            words.forEach((word, i) => {
+                const wordWidth = ctx.measureText(word).width;
+                const dataIndex = Math.floor((i / words.length) * bufferLength);
+                const yOffset = (dataArray[dataIndex] / 255 - 0.5) * (fontSize * 0.5);
+                ctx.fillStyle = `hsl(${180 + (i/words.length) * 180}, 100%, 60%)`;
+                ctx.fillText(word, currentX + wordWidth / 2, canvas.height / 2 + yOffset);
+                currentX += wordWidth + ctx.measureText(' ').width;
+            });
+        }
+
+        function drawSpotlightScan() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const maxWidth = canvas.width * 0.9;
+            setAdaptiveCanvasFont(text, 'Orbitron', 72, maxWidth, 'bold');
+            ctx.textAlign = "center";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            const scanX = (Date.now() % 3000 / 3000) * canvas.width;
+            const gradient = ctx.createLinearGradient(scanX - 100, 0, scanX + 100, 0);
+            gradient.addColorStop(0, 'rgba(0, 223, 255, 0)');
+            gradient.addColorStop(0.5, 'rgba(0, 223, 255, 1)');
+            gradient.addColorStop(1, 'rgba(0, 223, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        }
+
+        function drawFloatingWords() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const words = text.split(' ');
+            if (lyricAnimationState.words?.toString() !== words.toString()) {
+                lyricAnimationState.words = words.map((word, i) => ({
+                    text: word,
+                    x: Math.random() * canvas.width * 0.8 + canvas.width * 0.1,
+                    y: Math.random() * canvas.height * 0.8 + canvas.height * 0.1,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5
+                }));
+            }
+            ctx.font = "bold 24px Orbitron";
+            lyricAnimationState.words.forEach((word, i) => {
+                word.x += word.vx;
+                word.y += word.vy;
+                const wordWidth = ctx.measureText(word.text).width;
+                if (word.x < 0 || word.x + wordWidth > canvas.width) word.vx *= -1;
+                if (word.y - 24 < 0 || word.y > canvas.height) word.vy *= -1;
+                const dataIndex = Math.floor((i / words.length) * bufferLength);
+                const size = 24 + (dataArray[dataIndex] / 255) * 12;
+                ctx.font = `bold ${size}px Orbitron`;
+                ctx.fillStyle = 'white';
+                ctx.fillText(word.text, word.x, word.y);
+            });
+        }
+
+        function drawInkBleed() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            const maxWidth = canvas.width * 0.9;
+            setAdaptiveCanvasFont(text, 'Orbitron', 60, maxWidth, 'bold');
+            ctx.textAlign = "center";
+            ctx.fillStyle = 'white';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            ctx.shadowColor = 'var(--primary-color)';
+            ctx.shadowBlur = bass * 30;
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawSubwaySign() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const maxWidth = canvas.width * 0.95;
+            setAdaptiveCanvasFont(text, 'monospace', 48, maxWidth, 'bold');
+            ctx.textAlign = "center";
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, canvas.height/2 - 50, canvas.width, 100);
+            ctx.fillStyle = `hsl(60, 100%, 50%)`;
+            let displayText = '';
+            for(let i = 0; i < text.length; i++) {
+                if(Math.random() > 0.1) {
+                    displayText += text[i];
+                } else {
+                    displayText += String.fromCharCode(Math.random() * (126 - 33) + 33);
+                }
+            }
+            ctx.fillText(displayText, canvas.width / 2, canvas.height / 2 + 15);
+        }
+
+        function drawWarpSpeedLyrics() {
+            drawStarfield(1.5);
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            const stretch = 1 + bass * 2;
+            const baseFontSize = 72;
+            ctx.font = `italic bold ${baseFontSize}px Orbitron`;
+            const textWidth = ctx.measureText(text).width * stretch;
+            const scaleFactor = Math.min(1, (canvas.width * 0.9) / textWidth);
+            const fontSize = baseFontSize * scaleFactor;
+            ctx.font = `italic bold ${fontSize}px Orbitron`;
+            ctx.textAlign = "center";
+            ctx.fillStyle = "white";
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(stretch, 1);
+            ctx.fillText(text, 0, 0);
+            ctx.restore();
+        }
+
+        function drawHandwritten() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            if (lyricAnimationState.text !== text) {
+                lyricAnimationState.text = text;
+                lyricAnimationState.progress = 0;
+            }
+            lyricAnimationState.progress += 0.02;
+            if(lyricAnimationState.progress > 1) lyricAnimationState.progress = 1;
+            const visibleText = text.substring(0, Math.floor(text.length * lyricAnimationState.progress));
+            const maxWidth = canvas.width * 0.9;
+            setAdaptiveCanvasFont(text, "'Caveat', cursive", 60, maxWidth);
+            ctx.textAlign = "center";
+            ctx.fillStyle = "white";
+            ctx.fillText(visibleText, canvas.width / 2, canvas.height / 2);
+        }
+
+        function drawTextMosaic() {
+            const text = lyricsContainer.dataset.current || '';
+            if (!text) return;
+            const song = library.find(s => s.id === playQueue[currentQueueIndex]?.songId);
+            if (!song || !song.lyrics) return;
+
+            if(!lyricAnimationState.allWords) {
+                lyricAnimationState.allWords = song.lyrics.flatMap(l => l.text.split(' ')).filter(w => w);
+            }
+
+            ctx.font = "12px Orbitron";
+            for(let i = 0; i < 200; i++) {
+                const word = lyricAnimationState.allWords[i % lyricAnimationState.allWords.length];
+                const x = (i * 53) % canvas.width;
+                const y = Math.floor((i * 53) / canvas.width) * 20;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillText(word, x, y);
+            }
+
+            const maxWidth = canvas.width * 0.9;
+            setAdaptiveCanvasFont(text, 'Orbitron', 60, maxWidth, 'bold');
+            ctx.textAlign = "center";
+            ctx.fillStyle = "var(--primary-color)";
+            ctx.shadowColor = 'var(--primary-color)';
+            ctx.shadowBlur = 15;
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            ctx.shadowBlur = 0;
+        }
+
+        // --- UI and Event Listeners ---
+        function handleSettingsChange(e) {
+            if (e.target.type === 'range') {
+                const key = e.target.dataset.setting;
+                const value = parseFloat(e.target.value);
+                const isGlobal = e.target.dataset.isGlobal === 'true';
+
+                if (isGlobal) {
+                    globalSettings[key] = value;
+                    if (key === 'smoothing' && analyser) {
+                        analyser.smoothingTimeConstant = value;
+                    }
+                    if (key === 'uiScale') {
+                        document.documentElement.style.fontSize = `${16 * value}px`;
+                    }
+                    saveSettings('globalSettings', globalSettings);
+                } else {
+                    if (!themeSettings[currentStyleId]) {
+                        themeSettings[currentStyleId] = {};
+                    }
+                    themeSettings[currentStyleId][key] = value;
+                    saveSettings('themeSettings', themeSettings);
+                }
+            }
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', resizeCanvas);
+            
+            const audioFileInput = document.getElementById('audio-file-input');
+            const lyricsFileInput = document.getElementById('lyrics-file-input');
+            const importPlaylistInput = document.getElementById('import-playlist-input');
+            const songArtInput = document.getElementById('song-art-input');
+            const nowPlayingPanel = document.getElementById('now-playing-panel');
+
+            document.getElementById('add-audio-btn').addEventListener('click', () => audioFileInput.click());
+            document.getElementById('add-lyrics-btn').addEventListener('click', () => lyricsFileInput.click());
+            document.getElementById('import-playlist-btn').addEventListener('click', () => importPlaylistInput.click());
+            audioFileInput.addEventListener('change', handleFileUpload);
+            lyricsFileInput.addEventListener('change', handleLyricsFileLoad);
+            importPlaylistInput.addEventListener('change', handlePlaylistImport);
+            songArtInput.addEventListener('change', handleSongArtSelect);
+
+            
+            window.addEventListener('keydown', handleKeyPress);
+            settingsBtn.addEventListener('click', toggleSettings);
+            libraryBtn.addEventListener('click', toggleLibrary);
+            themesBtn.addEventListener('click', toggleThemeList);
+            
+            // Back/Close button listeners
+            document.getElementById('close-library-btn').addEventListener('click', () => toggleLibrary(false));
+            document.getElementById('close-settings-btn').addEventListener('click', () => toggleSettings(false));
+            document.getElementById('close-playlist-manager-btn').addEventListener('click', closePlaylistManager);
+            document.getElementById('close-theme-list-btn').addEventListener('click', () => toggleThemeList(false));
+
+            themeListModal.addEventListener('click', (e) => {
+                const themeItem = e.target.closest('.theme-list-item');
+                if (themeItem) {
+                    const styleId = themeItem.dataset.styleId;
+                    updateStyle(styleId);
+                    toggleThemeList(false); // Close modal after selection
+                }
+            });
+
+            settingsModal.addEventListener('input', handleSettingsChange);
+            
+            playbackControls.addEventListener('click', (e) => {
+                const button = e.target.closest('button');
+                if (!button) {
+                    if (e.target.closest('.progress-bar-wrapper')) {
+                        const rect = e.target.closest('.progress-bar-wrapper').getBoundingClientRect();
+                        audioPlayer.currentTime = audioPlayer.duration * ((e.clientX - rect.left) / rect.width);
+                    }
+                    return;
+                }
+                const targetId = button.id;
+                switch (targetId) {
+                    case 'play-pause-btn': togglePlayPause(); break;
+                    case 'shuffle-btn': toggleShuffle(button); break;
+                    case 'repeat-btn': cycleRepeatMode(button); break;
+                    case 'next-btn': playNext(); break;
+                    case 'prev-btn': playPrevious(); break;
+                }
+            });
+            document.getElementById('volume-slider').addEventListener('input', e => audioPlayer.volume = parseFloat(e.target.value));
+            fullLibraryModal.addEventListener('click', (e) => {
+                const deleteBtn = e.target.closest('.delete-song-btn');
+                const listItem = e.target.closest('.list-item');
+                const tabBtn = e.target.closest('.tab-btn');
+                const addBtn = e.target.closest('#add-btn');
+                const playlistItem = e.target.closest('.playlist-item');
+                const playPlaylistBtn = e.target.closest('.play-playlist-btn');
+
+                if (addBtn) {
+                    document.getElementById('add-menu').classList.toggle('hidden');
+                } else if (deleteBtn) {
+                    const songId = parseInt(deleteBtn.closest('.list-item').dataset.songId);
+                    removeSong(songId);
+                } else if (playPlaylistBtn) {
+                    const playlistId = parseInt(playPlaylistBtn.closest('.list-item').dataset.playlistId);
+                    playPlaylist(playlistId);
+                } else if (playlistItem && !e.target.closest('.item-actions')) {
+                     const playlistId = parseInt(playlistItem.dataset.playlistId);
+                     openPlaylistManager(playlistId);
+                } else if (listItem && !e.target.closest('.item-actions')) {
+                    playFromLibrary(parseInt(listItem.dataset.songId));
+                } else if (tabBtn) {
+                    document.querySelector('.tab-btn.active').classList.remove('active');
+                    tabBtn.classList.add('active');
+                    document.querySelector('.tab-content:not(.hidden)').classList.add('hidden');
+                    document.getElementById(`${tabBtn.dataset.tab}-tab`).classList.remove('hidden');
+                }
+            });
+            fullLibraryModal.addEventListener('dblclick', (e) => {
+                const titleSpan = e.target.closest('.song-title');
+                if (titleSpan) {
+                    makeTitleEditable(titleSpan);
+                }
+            });
+            document.getElementById('create-playlist-btn').addEventListener('click', createPlaylist);
+
+            // Playlist Management Listeners
+            playlistManagementModal.addEventListener('click', (e) => {
+                const removeBtn = e.target.closest('.remove-song-from-playlist-btn');
+                if (removeBtn) {
+                    const songId = parseInt(removeBtn.closest('.list-item').dataset.songId);
+                    removeSongFromPlaylist(songId);
+                }
+            });
+            document.getElementById('add-songs-to-playlist-btn').addEventListener('click', openAddSongsModal);
+            document.getElementById('cancel-add-songs-btn').addEventListener('click', () => toggleModalVisibility(document.getElementById('add-songs-modal'), false));
+            document.getElementById('confirm-add-songs-btn').addEventListener('click', confirmAddSongsToPlaylist);
+            document.getElementById('delete-playlist-btn').addEventListener('click', deleteActivePlaylist);
+            document.getElementById('export-playlist-btn').addEventListener('click', exportActivePlaylist);
+            document.getElementById('playlist-image-input').addEventListener('change', handlePlaylistImageSelect);
+            document.getElementById('confirm-crop-btn').addEventListener('click', confirmPlaylistImageCrop);
+            document.getElementById('cancel-crop-btn').addEventListener('click', cancelPlaylistImageCrop);
+            document.getElementById('playlist-name-input').addEventListener('change', updateActivePlaylistDetails);
+            document.getElementById('playlist-description-input').addEventListener('change', updateActivePlaylistDetails);
+            document.getElementById('play-playlist-from-editor-btn').addEventListener('click', () => {
+                if (activePlaylistId !== null) {
+                    playPlaylist(activePlaylistId);
+                    closePlaylistManager(); 
+                }
+            });
+
+
+            audioPlayer.addEventListener('timeupdate', () => { updateProgress(); updateLyrics(); });
+            audioPlayer.addEventListener('loadedmetadata', updateProgress);
+            audioPlayer.addEventListener('play', () => updatePlayPauseIcon(true));
+            audioPlayer.addEventListener('pause', () => updatePlayPauseIcon(false));
+            audioPlayer.addEventListener('ended', handleSongEnd);
+        }
+
+        function handleKeyPress(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key.toLowerCase() === 'u') toggleUI();
+            if (e.key.toLowerCase() === 'l') toggleThemeList();
+            if (e.key === 'ArrowRight') cycleStyle(1);
+            if (e.key === 'ArrowLeft') cycleStyle(-1);
+            if (e.key === 'Escape') {
+                const visibleModal = document.querySelector('#modal-container > .modal:not(.opacity-0)');
+                if (visibleModal) {
+                    toggleModalVisibility(visibleModal, false);
+                } else if (!document.getElementById('playlist-cropper-container').classList.contains('hidden')) {
+                    cancelPlaylistImageCrop();
+                }
+            }
+        }
+
+        function updateOverlayVisibility() {
+            const anyModalVisible = document.querySelector('#modal-container > .modal:not(.opacity-0)') || !document.getElementById('playlist-cropper-container').classList.contains('hidden');
+            modalOverlay.classList.toggle('hidden', !anyModalVisible);
+        }
+
+        function toggleModalVisibility(modal, show) {
+            if (!modal) return;
+            modal.classList.toggle('opacity-0', !show);
+
+            // Handle dimming for theme list modal
+            const nowPlayingPanel = document.getElementById('now-playing-panel');
+            if (modal.id === 'theme-list-modal') {
+                nowPlayingPanel.classList.toggle('dimmed', show);
+            }
+            
+            setTimeout(updateOverlayVisibility, 50); 
+        }
+
+        function toggleUI() {
+            globalSettings.isUiVisible = !globalSettings.isUiVisible;
+            document.getElementById('queue-panel').classList.toggle('opacity-0', !globalSettings.isUiVisible);
+            document.getElementById('bottom-left-controls').classList.toggle('opacity-0', !globalSettings.isUiVisible);
+            playbackControls.classList.toggle('autohide', !globalSettings.isUiVisible);
+            saveSettings('globalSettings', globalSettings);
+        }
+        function toggleSettings(force) {
+            globalSettings.isSettingsVisible = typeof force === 'boolean' ? force : !globalSettings.isSettingsVisible;
+            toggleModalVisibility(settingsModal, globalSettings.isSettingsVisible);
+            saveSettings('globalSettings', globalSettings);
+        }
+        function toggleLibrary(force) {
+            globalSettings.isLibraryVisible = typeof force === 'boolean' ? force : !globalSettings.isLibraryVisible;
+            toggleModalVisibility(fullLibraryModal, globalSettings.isLibraryVisible);
+            if (!globalSettings.isLibraryVisible) {
+                 document.getElementById('add-menu').classList.add('hidden');
+            }
+            saveSettings('globalSettings', globalSettings);
+        }
+
+        function toggleThemeList(force) {
+            globalSettings.isThemeListVisible = typeof force === 'boolean' ? force : !globalSettings.isThemeListVisible;
+            toggleModalVisibility(themeListModal, globalSettings.isThemeListVisible);
+            saveSettings('globalSettings', globalSettings);
+        }
+        
+        function renderThemeList() {
+            const container = document.getElementById('theme-list-container');
+            const instrumentalStyles = visualizerStyles.filter(s => !s.lyricsOnly);
+            const lyricStyles = visualizerStyles.filter(s => s.lyricsOnly);
+
+            let html = '<h2 class="text-xl font-bold text-cyan-400 mb-2">Instrumental</h2>';
+            html += instrumentalStyles.map(style => `
+                <div class="list-item theme-list-item ${style.id === currentStyleId ? 'active' : ''}" data-style-id="${style.id}">
+                    <span>${style.name}</span>
+                </div>
+            `).join('');
+
+            html += '<h2 class="text-xl font-bold text-cyan-400 mt-6 mb-2">Lyrics</h2>';
+            html += lyricStyles.map(style => `
+                <div class="list-item theme-list-item ${style.id === currentStyleId ? 'active' : ''}" data-style-id="${style.id}">
+                    <span>${style.name}</span>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+        
+        function cycleStyle(direction) {
+            const hasLyrics = playQueue.length > 0 && currentQueueIndex !== -1 ? !!library.find(s => s.id === playQueue[currentQueueIndex].songId)?.lyrics : false;
+            const availableStyles = hasLyrics ? visualizerStyles : visualizerStyles.filter(s => !s.lyricsOnly);
+            let currentIndex = availableStyles.findIndex(s => s.id === currentStyleId);
+
+            if (currentIndex === -1) {
+                currentIndex = 0;
+            }
+            
+            let nextIndex = currentIndex + direction;
+            if (nextIndex < 0) nextIndex = availableStyles.length - 1;
+            if (nextIndex >= availableStyles.length) nextIndex = 0;
+            
+            updateStyle(availableStyles[nextIndex].id);
+        }
+
+        function updateStyle(newId) {
+            if (newId === currentStyleId && document.querySelector(`#controls-for-${newId}:not(.hidden)`)) return;
+            
+            particles = []; 
+            lyricAnimationState = {}; 
+            currentStyleId = newId;
+            globalSettings.lastTheme = newId;
+            saveSettings('globalSettings', globalSettings);
+            
+            const newStyle = visualizerStyles.find(s => s.id === newId);
+
+            renderThemeList();
+
+            // Hide all theme-specific controls
+            document.querySelectorAll('.style-controls').forEach(el => el.classList.add('hidden'));
+            
+            // Show controls for the new theme
+            const controls = document.getElementById(`controls-for-${newId}`);
+            if (controls) {
+                controls.classList.remove('hidden');
+                // Update slider values to match the current theme's settings
+                const currentThemeSettings = themeSettings[newId] || {};
+                Object.keys(currentThemeSettings).forEach(key => {
+                    const input = controls.querySelector(`input[data-setting="${key}"]`);
+                    if (input) {
+                        input.value = currentThemeSettings[key];
+                    }
+                });
+            }
+
+            // Update global control sliders
+            document.querySelectorAll('input[data-is-global="true"]').forEach(input => {
+                input.value = globalSettings[input.dataset.setting];
+            });
+
+
+            if (!newStyle.lyricsOnly) {
+                lyricsContainer.style.fontSize = ""; // Reset HTML font size
+                lyricsContainer.style.bottom = "25%";
+                lyricsContainer.style.transform = "translateX(-50%)";
+            }
+            
+            showThemeToast(`Theme: ${newStyle.name}`);
+        }
+
+        // --- Library & Queue Logic ---
+        async function handleFileUpload(event) {
+            const newSongsData = [];
+            for (const file of event.target.files) {
+                if (library.some(song => song.originalName === file.name)) {
+                    console.log(`Skipping duplicate: ${file.name}`);
+                    continue;
+                }
+
+                const songData = {
+                    title: file.name.replace(/\.[^/.]+$/, ''),
+                    originalName: file.name,
+                    blob: file,
+                    art: null,
+                    artist: 'Unknown Artist'
+                };
+
+                await new Promise(resolve => {
+                    jsmediatags.read(file, {
+                        onSuccess: function(tag) {
+                            songData.title = tag.tags.title || songData.title;
+                            songData.artist = tag.tags.artist || 'Unknown Artist';
+                            if (tag.tags.picture) {
+                                const { data, format } = tag.tags.picture;
+                                let base64String = "";
+                                for (let i = 0; i < data.length; i++) {
+                                    base64String += String.fromCharCode(data[i]);
+                                }
+                                songData.art = `data:${format};base64,${window.btoa(base64String)}`;
+                            }
+                            resolve();
+                        },
+                        onError: function(error) {
+                            console.log('Error reading metadata:', error.type, error.info);
+                            resolve();
+                        }
+                    });
+                });
+                newSongsData.push(songData);
+            }
+
+            if (newSongsData.length > 0) {
+                const transaction = db.transaction('songs', 'readwrite');
+                const songStore = transaction.objectStore('songs');
+                
+                await Promise.all(newSongsData.map(async (songData) => {
+                    const id = await new Promise((resolve, reject) => {
+                         const request = songStore.add(songData);
+                         request.onsuccess = e => resolve(e.target.result);
+                         request.onerror = e => reject(e.target.error);
+                    });
+                    const newSong = { ...songData, id, url: URL.createObjectURL(songData.blob), lyrics: lyricsLibrary.get(songData.originalName) || null };
+                    library.push(newSong);
+                }));
+                
+                await new Promise(resolve => transaction.oncomplete = resolve);
+            }
+
+            renderFullLibrary();
+            if (audioPlayer.paused && library.length > 0 && playQueue.length === 0) {
+                playFromLibrary(library[0].id);
+            }
+            event.target.value = '';
+        }
+        
+        async function handleSongArtSelect(event) {
+            const file = event.target.files[0];
+            if (!file || currentQueueIndex === -1) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const song = library.find(s => s.id === playQueue[currentQueueIndex].songId);
+                if (song) {
+                    song.art = e.target.result;
+                    document.getElementById('now-playing-art').src = song.art;
+                    await extractAndSetPalette(song.art); // Update palette on manual change
+                    const songStore = db.transaction('songs', 'readwrite').objectStore('songs');
+                    await new Promise(resolve => songStore.put(song).onsuccess = resolve);
+                }
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        }
+
+        function handleLyricsFileLoad(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const lyricsData = JSON.parse(e.target.result);
+                    const lyricsStore = db.transaction('lyrics', 'readwrite').objectStore('lyrics');
+                    lyricsLibrary.clear();
+                    for (const song of lyricsData) {
+                        if(song.identifier && song.lyrics) {
+                           await new Promise(resolve => lyricsStore.put(song).onsuccess = resolve);
+                           lyricsLibrary.set(song.identifier, song.lyrics);
+                        }
+                    }
+                    library.forEach(song => song.lyrics = lyricsLibrary.get(song.originalName) || null);
+                    renderFullLibrary();
+                    if (!audioPlayer.paused && currentQueueIndex !== -1) {
+                        const song = library.find(s => s.id === playQueue[currentQueueIndex].songId);
+                        renderThemeList();
+                    }
+                } catch (err) {
+                    showCustomDialog({
+                        title: 'Import Error',
+                        message: "Could not parse lyrics file. Ensure it's valid JSON.",
+                        buttons: [{ text: 'OK', value: true, class: 'px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-all' }]
+                    });
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset file input
+        }
+
+        function renderFullLibrary() {
+            const songsTab = document.getElementById('songs-tab');
+            songsTab.innerHTML = library.map((song) => `
+                <div class="list-item" data-song-id="${song.id}">
+                    ${song.lyrics ? micSVG : musicNoteSVG}
+                    <div class="song-title-container"><span class="song-title">${song.title}</span></div>
+                    <div class="item-actions">
+                        <button class="delete-song-btn p-1 rounded-full hover:bg-red-500/20">${deleteSVG}</button>
+                    </div>
+                </div>`).join('');
+        }
+        
+        function renderPlaylists() {
+            const playlistsList = document.getElementById('playlists-list');
+            playlistsList.innerHTML = playlists.map(p => `
+                <div class="list-item playlist-item" data-playlist-id="${p.id}">
+                    ${playlistSVG}
+                    <div class="playlist-name-container"><span class="playlist-name">${p.name}</span></div>
+                    <div class="item-actions">
+                        <button class="play-playlist-btn p-1 rounded-full hover:bg-green-500/20">${playSVG}</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        async function createPlaylist() {
+            const name = await showCustomPrompt("Enter playlist name:");
+            if (name && name.trim()) {
+                const playlist = { 
+                    name: name.trim(), 
+                    songs: [], 
+                    description: '', 
+                    image: null 
+                };
+                const playlistStore = db.transaction('playlists', 'readwrite').objectStore('playlists');
+                const id = await new Promise(resolve => playlistStore.add(playlist).onsuccess = e => resolve(e.target.result));
+                playlists.push({ ...playlist, id });
+                renderPlaylists();
+            }
+        }
+        
+        function renderQueue() {
+            queueItemsContainer.innerHTML = playQueue.map((queueItem, index) => {
+                const song = library.find(s => s.id === queueItem.songId);
+                if (!song) return '';
+                const isActive = index === currentQueueIndex;
+                const artSrc = song.art || 'https://placehold.co/40x40/0a0a0a/e0e0e0?text=...';
+                return `
+                    <div class="list-item ${isActive ? 'active' : ''}" data-queue-index="${index}">
+                        <div class="relative mr-3 flex-shrink-0">
+                            <img src="${artSrc}" class="w-10 h-10 rounded-md object-cover">
+                            ${isActive ? `
+                                <div class="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md">
+                                    <svg class="w-5 h-5 fill-current text-cyan-400" viewBox="0 0 20 20"><path d="M4.018 15.59a1.5 1.5 0 002.122.149l9.362-6.554a1.5 1.5 0 000-2.368L6.14 3.263A1.5 1.5 0 004.018 4.41v11.18z"></path></svg>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="song-title-container"><span class="song-title">${song.title}</span></div>
+                    </div>`;
+            }).join('');
+        }
+        
+        function makeTitleEditable(span) {
+            const currentTitle = span.textContent;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentTitle;
+            input.className = 'bg-transparent border-b border-cyan-500 text-white w-full';
+            
+            span.parentElement.replaceWith(input);
+            input.focus();
+            
+            const save = async () => {
+                const newTitle = input.value.trim();
+                const listItem = input.closest('.list-item');
+                if (!listItem) return;
+                const songId = parseInt(listItem.dataset.songId);
+                const song = library.find(s => s.id === songId);
+                if (song && newTitle) {
+                    song.title = newTitle;
+                    const songStore = db.transaction('songs', 'readwrite').objectStore('songs');
+                    await new Promise(resolve => songStore.put(song).onsuccess = resolve);
+                }
+                renderFullLibrary();
+                renderQueue();
+            };
+            
+            input.addEventListener('blur', save);
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+        }
+        
+        async function removeSong(songId) {
+            const songIndexInLibrary = library.findIndex(s => s.id === songId);
+            if (songIndexInLibrary === -1) return;
+
+            const songStore = db.transaction('songs', 'readwrite').objectStore('songs');
+            await new Promise(resolve => songStore.delete(songId).onsuccess = resolve);
+
+            library.splice(songIndexInLibrary, 1);
+
+            const wasPlaying = playQueue[currentQueueIndex]?.songId === songId;
+            let currentPlayingId = playQueue[currentQueueIndex]?.songId;
+            let newQueue = playQueue.filter(item => item.songId !== songId);
+            
+            if (wasPlaying) {
+                playQueue = newQueue;
+                if (playQueue.length > 0) {
+                    currentQueueIndex = (currentQueueIndex >= playQueue.length) ? 0 : currentQueueIndex;
+                    playSongFromQueue();
+                } else {
+                    audioPlayer.pause();
+                    audioPlayer.src = '';
+                    currentQueueIndex = -1;
+                }
+            } else {
+                 playQueue = newQueue;
+                 currentQueueIndex = playQueue.findIndex(item => item.songId === currentPlayingId);
+            }
+            
+            renderFullLibrary();
+            renderQueue();
+        }
+
+        function playFromLibrary(songId) {
+            const libraryIndex = library.findIndex(s => s.id === songId);
+            if (libraryIndex === -1) return;
+
+            currentQueueIndex = 0;
+            if (isShuffled) {
+                shuffleQueue(true, libraryIndex);
+            } else {
+                 playQueue = library.map((s, i) => ({ songId: s.id, originalIndex: i }))
+                     .slice(libraryIndex)
+                     .concat(library.map((s, i) => ({ songId: s.id, originalIndex: i })).slice(0, libraryIndex));
+            }
+            playSongFromQueue();
+        }
+
+        async function playSongFromQueue() {
+            if (currentQueueIndex < 0 || currentQueueIndex >= playQueue.length) return;
+            
+            const song = library.find(s => s.id === playQueue[currentQueueIndex].songId);
+            if (!song) {
+                console.error("Song not found in library, skipping.");
+                return handleSongEnd(); 
+            }
+            
+            await extractAndSetPalette(song.art);
+
+            const currentStyle = visualizerStyles.find(s => s.id === currentStyleId);
+            if (currentStyle.lyricsOnly && !song.lyrics) {
+                updateStyle('bars');
+            }
+            
+            renderThemeList(); 
+            
+            const nowPlayingPanel = document.getElementById('now-playing-panel');
+            nowPlayingPanel.classList.add('popup');
+            setTimeout(() => nowPlayingPanel.classList.remove('popup'), 3000);
+
+            document.getElementById('now-playing-art').src = song.art || 'https://placehold.co/128x128/0a0a0a/e0e0e0?text=...&font=orbitron';
+            document.getElementById('now-playing-title').textContent = song.title;
+            document.getElementById('now-playing-artist').textContent = song.artist;
+
+            audioPlayer.src = song.url;
+            setupAudioContext();
+            audioPlayer.play().catch(e => console.error("Playback failed:", e));
+            
+            lyricsContainer.innerHTML = '';
+            recentLyrics = [];
+            renderQueue();
+        }
+        
+        function handleSongEnd() {
+            if (repeatMode === 'one') {
+                audioPlayer.currentTime = 0;
+                audioPlayer.play();
+                return;
+            }
+            playNext();
+        }
+
+        // --- Playback Controls Logic ---
+        function playNext() {
+            if (playQueue.length === 0) return;
+            currentQueueIndex++;
+            if (currentQueueIndex >= playQueue.length) {
+                if (repeatMode === 'all') {
+                    currentQueueIndex = 0;
+                    if (isShuffled) shuffleQueue(false);
+                } else {
+                    currentQueueIndex = playQueue.length - 1; 
+                    updatePlayPauseIcon(false);
+                    return;
+                }
+            }
+            playSongFromQueue();
+        }
+
+        function playPrevious() {
+            if (playQueue.length === 0) return;
+            if (audioPlayer.currentTime > 3) {
+                audioPlayer.currentTime = 0;
+                return;
+            }
+            currentQueueIndex--;
+            if (currentQueueIndex < 0) {
+                currentQueueIndex = playQueue.length - 1; 
+            }
+            playSongFromQueue();
+        }
+
+        function togglePlayPause() {
+            if (!audioContext) setupAudioContext();
+            if (audioContext.state === 'suspended') audioContext.resume();
+            if (audioPlayer.paused) {
+                if (!audioPlayer.src && playQueue.length > 0) {
+                    playSongFromQueue();
+                } else {
+                    audioPlayer.play();
+                }
+            } else {
+                audioPlayer.pause();
+            }
+        }
+        
+        function toggleShuffle(btn) {
+            isShuffled = !isShuffled;
+            btn.classList.toggle('active', isShuffled);
+            if (playQueue.length > 0) {
+                 if(isShuffled) shuffleQueue(true);
+                 else {
+                   const currentSongId = playQueue[currentQueueIndex].songId;
+                   const libIndex = library.findIndex(s => s.id === currentSongId);
+                   playFromLibrary(libIndex !== -1 ? currentSongId : (library[0]?.id || -1));
+                 }
+                 renderQueue();
+            }
+        }
+
+        function shuffleQueue(keepCurrentSongFirst = true, newSongIndex = -1) {
+            let currentSongId;
+            if (newSongIndex !== -1) {
+                currentSongId = library[newSongIndex].id;
+            } else if (keepCurrentSongFirst && currentQueueIndex !== -1) {
+                currentSongId = playQueue[currentQueueIndex].songId;
+            }
+            let toShuffle = library.map(s => ({ songId: s.id }));
+            if (currentSongId !== undefined) {
+                toShuffle = toShuffle.filter(item => item.songId !== currentSongId);
+            }
+            for (let i = toShuffle.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [toShuffle[i], toShuffle[j]] = [toShuffle[j], toShuffle[i]];
+            }
+            playQueue = (currentSongId !== undefined) ? [{ songId: currentSongId }, ...toShuffle] : toShuffle;
+            currentQueueIndex = 0;
+        }
+
+        function cycleRepeatMode(btn) {
+            if (repeatMode === 'none') {
+                repeatMode = 'all';
+                btn.innerHTML = repeatAllSVG; btn.classList.add('active');
+            } else if (repeatMode === 'all') {
+                repeatMode = 'one';
+                btn.innerHTML = repeatOneSVG;
+            } else {
+                repeatMode = 'none';
+                btn.innerHTML = repeatAllSVG; btn.classList.remove('active');
+            }
+        }
+
+        // --- Playlist Management ---
+        function playPlaylist(playlistId) {
+            const playlist = playlists.find(p => p.id === playlistId);
+            if (!playlist || playlist.songs.length === 0) {
+                showThemeToast("Playlist is empty!");
+                return;
+            }
+
+            playQueue = playlist.songs
+                .map(songId => {
+                    const song = library.find(s => s.id === songId);
+                    if (!song) return null; 
+                    return { songId: song.id, originalIndex: library.indexOf(song) };
+                })
+                .filter(item => item !== null); 
+
+            if (playQueue.length === 0) {
+                showThemeToast("Playlist songs not found in library.");
+                return;
+            }
+
+            if (isShuffled) {
+                for (let i = playQueue.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [playQueue[i], playQueue[j]] = [playQueue[j], playQueue[i]];
+                }
+            }
+
+            currentQueueIndex = 0;
+            playSongFromQueue();
+            toggleLibrary(false); // Close the library
+        }
+
+        async function removeSongFromPlaylist(songId) {
+            if (activePlaylistId === null) return;
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist) return;
+
+            const songIndex = playlist.songs.indexOf(songId);
+            if (songIndex > -1) {
+                playlist.songs.splice(songIndex, 1);
+            }
+
+            await updateActivePlaylistDetails();
+            renderPlaylistSongs(playlist);
+        }
+
+        function openPlaylistManager(playlistId) {
+            activePlaylistId = playlistId;
+            const playlist = playlists.find(p => p.id === playlistId);
+            if (!playlist) return;
+
+            document.getElementById('playlist-name-input').value = playlist.name;
+            document.getElementById('playlist-description-input').value = playlist.description || '';
+            const imageEl = document.getElementById('playlist-image');
+            imageEl.src = playlist.image ? playlist.image : 'https://placehold.co/150x150/0a0a0a/e0e0e0?text=No+Art';
+
+
+            renderPlaylistSongs(playlist);
+            
+            globalSettings.isPlaylistManagerVisible = true;
+            toggleModalVisibility(playlistManagementModal, true);
+            toggleModalVisibility(fullLibraryModal, false);
+            globalSettings.isLibraryVisible = false;
+        }
+
+        function closePlaylistManager() {
+            activePlaylistId = null;
+            globalSettings.isPlaylistManagerVisible = false;
+            toggleModalVisibility(playlistManagementModal, false);
+            toggleLibrary(true); // Go back to the library view
+            cancelPlaylistImageCrop(); // Ensure cropper is hidden
+            renderPlaylists(); // Update list in case name changed
+        }
+        
+        function renderPlaylistSongs(playlist) {
+            const container = document.getElementById('playlist-songs-list');
+            container.innerHTML = playlist.songs.map(songId => {
+                const song = library.find(s => s.id === songId);
+                if (!song) return '';
+                return `<div class="list-item" data-song-id="${song.id}">
+                            ${musicNoteSVG}
+                            <span class="flex-grow">${song.title}</span>
+                            <button class="remove-song-from-playlist-btn p-1 rounded-full hover:bg-red-500/20">${deleteSVG}</button>
+                        </div>`;
+            }).join('');
+        }
+
+        function openAddSongsModal() {
+            const addSongsList = document.getElementById('add-songs-list');
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist) return;
+
+            addSongsList.innerHTML = library.map(song => {
+                const isAlreadyInPlaylist = playlist.songs.includes(song.id);
+                return `
+                    <div class="list-item">
+                        <input type="checkbox" data-song-id="${song.id}" class="mr-4" ${isAlreadyInPlaylist ? 'checked' : ''}>
+                        <label class="flex-grow">${song.title}</label>
+                    </div>
+                `;
+            }).join('');
+            toggleModalVisibility(document.getElementById('add-songs-modal'), true);
+        }
+
+        async function confirmAddSongsToPlaylist() {
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist) return;
+
+            const selectedSongIds = Array.from(document.querySelectorAll('#add-songs-list input[type="checkbox"]:checked'))
+                .map(cb => parseInt(cb.dataset.songId));
+
+            playlist.songs = selectedSongIds;
+            await updateActivePlaylistDetails();
+            renderPlaylistSongs(playlist);
+            toggleModalVisibility(document.getElementById('add-songs-modal'), false);
+        }
+        
+        async function updateActivePlaylistDetails() {
+            if (activePlaylistId === null) return;
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist) return;
+
+            playlist.name = document.getElementById('playlist-name-input').value;
+            playlist.description = document.getElementById('playlist-description-input').value;
+            
+            const store = db.transaction('playlists', 'readwrite').objectStore('playlists');
+            await new Promise(resolve => store.put(playlist).onsuccess = resolve);
+        }
+
+        async function deleteActivePlaylist() {
+            if (activePlaylistId === null) return;
+            const confirmed = await showCustomDialog({
+                title: 'Delete Playlist',
+                message: `Are you sure you want to delete the playlist "${playlists.find(p=>p.id === activePlaylistId).name}"? This cannot be undone.`,
+                buttons: [
+                    { text: 'Cancel', value: false, class: 'px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-500 transition-all' },
+                    { text: 'Delete', value: true, class: 'px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition-all' }
+                ]
+            });
+
+            if (!confirmed) return;
+
+            const store = db.transaction('playlists', 'readwrite').objectStore('playlists');
+            await new Promise(resolve => store.delete(activePlaylistId).onsuccess = resolve);
+            
+            playlists = playlists.filter(p => p.id !== activePlaylistId);
+            closePlaylistManager();
+        }
+
+        function handlePlaylistImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById('playlist-cropper-container').classList.remove('hidden');
+                updateOverlayVisibility();
+                const image = document.getElementById('playlist-cropper-image');
+                image.src = e.target.result;
+
+                if (cropper) cropper.destroy();
+                cropper = new Cropper(image, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                });
+            };
+            reader.readAsDataURL(file);
+            event.target.value = ''; // Reset file input
+        }
+
+        function cancelPlaylistImageCrop() {
+            document.getElementById('playlist-cropper-container').classList.add('hidden');
+            updateOverlayVisibility();
+            if (cropper) cropper.destroy();
+            cropper = null;
+        }
+
+        async function confirmPlaylistImageCrop() {
+            if (!cropper || activePlaylistId === null) return;
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist) return;
+
+            const imageDataUrl = cropper.getCroppedCanvas({
+                width: 300,
+                height: 300,
+                imageSmoothingQuality: 'high',
+            }).toDataURL('image/jpeg');
+
+            playlist.image = imageDataUrl;
+            document.getElementById('playlist-image').src = imageDataUrl;
+
+            const store = db.transaction('playlists', 'readwrite').objectStore('playlists');
+            await new Promise(resolve => store.put(playlist).onsuccess = resolve);
+            
+            cancelPlaylistImageCrop();
+        }
+
+        async function exportActivePlaylist() {
+            if (activePlaylistId === null) return;
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist) return;
+
+            const zip = new JSZip();
+
+            const playlistDataForExport = {
+                name: playlist.name || "Untitled Playlist",
+                description: playlist.description || "",
+                image_filename: null // Will be set if image exists
+            };
+
+            if (playlist.image) {
+                const imageFileName = "cover.jpg";
+                playlistDataForExport.image_filename = imageFileName;
+                const imageBlob = await (await fetch(playlist.image)).blob();
+                zip.file(imageFileName, imageBlob);
+            }
+            
+            zip.file('playlist.json', JSON.stringify(playlistDataForExport, null, 2));
+
+            const songsFolder = zip.folder("songs");
+            for (const songId of playlist.songs) {
+                const song = library.find(s => s.id === songId);
+                if (song && song.blob) {
+                    songsFolder.file(song.originalName, song.blob);
+                }
+            }
+
+            const content = await zip.generateAsync({type:"blob"});
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(content);
+            const safeName = (playlist.name || 'playlist').replace(/[^a-z0-9]/gi, '_');
+            link.download = `${safeName}.zip`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        // --- Playlist Import Logic ---
+        async function processPlaylistImport(playlistInfo, audioBlobs, imageFile) {
+            let imageBase64 = null;
+            if (imageFile) {
+                imageBase64 = await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.readAsDataURL(imageFile);
+                });
+            }
+
+            const newPlaylist = {
+                name: playlistInfo.name || 'Imported Playlist',
+                description: playlistInfo.description || '',
+                image: imageBase64,
+                songs: []
+            };
+
+            const songsToProcess = [];
+            for (const [originalName, blob] of audioBlobs.entries()) {
+                const existingSong = library.find(s => s.originalName === originalName);
+                if (existingSong) {
+                    newPlaylist.songs.push(existingSong.id);
+                } else {
+                    songsToProcess.push({
+                        title: originalName.replace(/\.[^/.]+$/, ''),
+                        originalName: originalName,
+                        blob: blob
+                    });
+                }
+            }
+
+            if (songsToProcess.length > 0) {
+                const songTx = db.transaction('songs', 'readwrite');
+                const songStore = songTx.objectStore('songs');
+                
+                await Promise.all(songsToProcess.map(async (songData) => {
+                    const id = await new Promise((resolve, reject) => {
+                         const request = songStore.add(songData);
+                         request.onsuccess = e => resolve(e.target.result);
+                         request.onerror = e => reject(e.target.error);
+                    });
+                    const newSong = { ...songData, id, url: URL.createObjectURL(songData.blob), lyrics: lyricsLibrary.get(songData.originalName) || null };
+                    library.push(newSong);
+                    newPlaylist.songs.push(id);
+                }));
+                
+                await new Promise(resolve => songTx.oncomplete = resolve);
+            }
+
+            const playlistTx = db.transaction('playlists', 'readwrite');
+            const playlistStore = playlistTx.objectStore('playlists');
+            const id = await new Promise(resolve => playlistStore.add(newPlaylist).onsuccess = e => resolve(e.target.result));
+            playlists.push({ ...newPlaylist, id });
+            
+            await new Promise(resolve => playlistTx.oncomplete = resolve);
+
+            renderPlaylists();
+            renderFullLibrary();
+            showCustomDialog({
+                title: 'Import Successful',
+                message: `Playlist "${newPlaylist.name}" imported successfully!`,
+                buttons: [{ text: 'OK', value: true, class: 'px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-all' }]
+            });
+        }
+        
+        async function handlePlaylistImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = ''; // Reset file input
+
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const playlistJsonFile = zip.file('playlist.json');
+                if (!playlistJsonFile) throw new Error("Invalid playlist file: missing playlist.json");
+
+                const playlistData = JSON.parse(await playlistJsonFile.async('string'));
+                const audioBlobs = new Map();
+                const songFiles = zip.folder('songs').files;
+
+                let imageFile = null;
+                if (playlistData.image_filename) {
+                    const imageZipFile = zip.file(playlistData.image_filename);
+                    if (imageZipFile) {
+                        imageFile = await imageZipFile.async('blob');
+                    }
+                }
+
+                for (const relativePath in songFiles) {
+                    if (Object.hasOwnProperty.call(songFiles, relativePath) && !songFiles[relativePath].dir) {
+                        const songFile = songFiles[relativePath];
+                        const originalName = songFile.name.split('/').pop();
+                        if (originalName) {
+                            const blob = await songFile.async('blob');
+                            audioBlobs.set(originalName, blob);
+                        }
+                    }
+                }
+                
+                await processPlaylistImport(playlistData, audioBlobs, imageFile);
+
+            } catch (e) {
+                console.error("Playlist ZIP import failed:", e);
+                showCustomDialog({
+                    title: 'Import Error',
+                    message: `Failed to process the ZIP file. It may be corrupt or in an invalid format. Error: ${e.message}`,
+                    buttons: [{ text: 'OK', value: true, class: 'px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-all' }]
+                });
+            }
+        }
+
+        // --- Notifications & Dialogs ---
+        let promptResolve = null;
+        let promptReject = null;
+
+        function showCustomPrompt(title) {
+            const modal = document.getElementById('custom-prompt-modal');
+            const titleEl = document.getElementById('prompt-title');
+            const inputEl = document.getElementById('prompt-input');
+
+            titleEl.textContent = title;
+            inputEl.value = '';
+            toggleModalVisibility(modal, true);
+            inputEl.focus();
+
+            return new Promise((resolve, reject) => {
+                promptResolve = resolve;
+                promptReject = reject;
+            });
+        }
+        document.getElementById('prompt-confirm-btn').addEventListener('click', () => {
+            const modal = document.getElementById('custom-prompt-modal');
+            const value = document.getElementById('prompt-input').value;
+            if (promptResolve) promptResolve(value);
+            toggleModalVisibility(modal, false);
+        });
+
+        document.getElementById('prompt-cancel-btn').addEventListener('click', () => {
+            const modal = document.getElementById('custom-prompt-modal');
+            if (promptReject) promptReject();
+            toggleModalVisibility(modal, false);
+        });
+        
+        function showCustomDialog({ title, message, buttons }) {
+            const modal = document.getElementById('custom-dialog-modal');
+            document.getElementById('dialog-title').textContent = title;
+            document.getElementById('dialog-message').textContent = message;
+            const buttonContainer = document.getElementById('dialog-buttons');
+            buttonContainer.innerHTML = ''; // Clear previous buttons
+
+            return new Promise((resolve) => {
+                buttons.forEach(buttonInfo => {
+                    const btn = document.createElement('button');
+                    btn.textContent = buttonInfo.text;
+                    btn.className = buttonInfo.class;
+                    btn.onclick = () => {
+                        toggleModalVisibility(modal, false);
+                        resolve(buttonInfo.value);
+                    };
+                    buttonContainer.appendChild(btn);
+                });
+                toggleModalVisibility(modal, true);
+            });
+        }
+
+        function showNowPlayingToast(message) {
+            // This toast has been disabled by user request.
+        }
+        
+        function showThemeToast(message) {
+            clearTimeout(themeTimeout);
+            themeToast.textContent = message;
+            themeToast.classList.add('show');
+            themeTimeout = setTimeout(() => {
+                themeToast.classList.remove('show');
+            }, 3000);
+        }
+
+        function updateLyrics() {
+            if (currentQueueIndex === -1) return;
+            const song = library.find(s => s.id === playQueue[currentQueueIndex].songId);
+            const isCanvasLyricTheme = visualizerStyles.find(s => s.id === currentStyleId)?.lyricsOnly;
+            
+            if (!song || !song.lyrics) { 
+                lyricsContainer.classList.remove('show');
+                lyricsContainer.dataset.current = '';
+                return; 
+            }
+            
+            const currentTime = audioPlayer.currentTime;
+            let currentLyric = "";
+            for (let i = 0; i < song.lyrics.length; i++) {
+                if (currentTime >= song.lyrics[i].time && (!song.lyrics[i+1] || currentTime < song.lyrics[i+1].time)) {
+                    currentLyric = song.lyrics[i].text; break;
+                }
+            }
+
+            if (lyricsContainer.dataset.current !== currentLyric) {
+                lyricsContainer.dataset.current = currentLyric;
+                
+                if (isCanvasLyricTheme) {
+                    lyricsContainer.classList.remove('show');
+                    if ((currentStyleId === 'cascade' || currentStyleId === 'echo') && currentLyric.trim() !== '') {
+                        recentLyrics.unshift({ text: currentLyric });
+                        if (recentLyrics.length > 10) recentLyrics.pop();
+                    }
+                } else {
+                    lyricsContainer.classList.remove('show');
+                    setTimeout(() => {
+                        lyricsContainer.textContent = currentLyric;
+                        if (currentLyric.trim() !== '') {
+                            setAdaptiveFontSize(lyricsContainer, currentLyric);
+                            lyricsContainer.classList.add('show');
+                        }
+                    }, 250);
+                }
+            } else if (!isCanvasLyricTheme && lyricsContainer.classList.contains('show')) {
+                // FIX: Re-apply font size if it was reset by browser on style change
+                setAdaptiveFontSize(lyricsContainer, currentLyric);
+            }
+        }
+        
+        function updatePlayPauseIcon(isPlaying) {
+            const playIcon = document.getElementById('play-icon');
+            const pauseIcon = document.getElementById('pause-icon');
+            if (playIcon && pauseIcon) {
+                playIcon.classList.toggle('hidden', isPlaying);
+                pauseIcon.classList.toggle('hidden', !isPlaying);
+            }
+        }
+        
+        function formatTime(s) { if(isNaN(s)) return '0:00'; const m=Math.floor(s/60),sc=Math.floor(s%60); return `${m}:${sc<10?'0':''}${sc}`; }
+
+        function updateProgress() {
+            const progressBar = document.getElementById('progress-bar');
+            if (progressBar && audioPlayer.duration) {
+                progressBar.style.width = `${(audioPlayer.currentTime / audioPlayer.duration) * 100}%`;
+                document.getElementById('current-time').textContent = formatTime(audioPlayer.currentTime);
+                document.getElementById('duration').textContent = formatTime(audioPlayer.duration);
+            }
+        }
+
+        // --- Settings Management ---
+        function initializeDefaultSettings() {
+            globalSettings = {
+                sensitivity: 1,
+                smoothing: 0.85,
+                uiScale: 1,
+                volume: 1,
+                lastTheme: 'bars',
+                isUiVisible: true,
+                isSettingsVisible: false, 
+                isLibraryVisible: false, 
+                isPlaylistManagerVisible: false, 
+                isThemeListVisible: false
+            };
+
+            themeSettings = {
+                'bars': { barWidth: 5, barSpacing: 2 },
+                'circle': { circleRadius: 100, circleRotationSpeed: 0.001 },
+                'waveform': { waveThickness: 2 },
+                'neonwave': { neonThickness: 3 },
+                'particles': { particleSize: 3, particleSpeed: 1.5 },
+                'spotlight': { beamSize: 20, beamIntensity: 0.5 },
+            };
+        }
+
+        async function saveSettings(key, value) {
+            try {
+                const transaction = db.transaction('settings', 'readwrite');
+                const store = transaction.objectStore('settings');
+                await new Promise((resolve, reject) => {
+                    const request = store.put({ id: key, value: value });
+                    request.onsuccess = resolve;
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (e) {
+                console.error(`Failed to save settings for key: ${key}`, e);
+            }
+        }
+
+        async function loadSettingsFromDB() {
+            try {
+                const transaction = db.transaction('settings', 'readonly');
+                const store = transaction.objectStore('settings');
+                const globalReq = store.get('globalSettings');
+                const themeReq = store.get('themeSettings');
+
+                const savedGlobals = await new Promise(r => { globalReq.onsuccess = e => r(e.target.result); });
+                const savedThemes = await new Promise(r => { themeReq.onsuccess = e => r(e.target.result); });
+
+                if (savedGlobals) {
+                    globalSettings = { ...globalSettings, ...savedGlobals.value };
+                }
+                if (savedThemes) {
+                    themeSettings = { ...themeSettings, ...savedThemes.value };
+                }
+                
+                // Apply loaded settings
+                currentStyleId = globalSettings.lastTheme || 'bars';
+                document.documentElement.style.fontSize = `${16 * globalSettings.uiScale}px`;
+                
+                // FIX: Validate the volume before setting it
+                if (globalSettings.volume !== undefined && isFinite(globalSettings.volume)) {
+                    audioPlayer.volume = globalSettings.volume;
+                } else {
+                    globalSettings.volume = 1; // Fallback to default
+                    audioPlayer.volume = 1;
+                }
+
+                const volumeSlider = document.getElementById('volume-slider');
+                if(volumeSlider) volumeSlider.value = globalSettings.volume;
+
+                if (analyser) {
+                    analyser.smoothingTimeConstant = globalSettings.smoothing;
+                }
+
+            } catch (e) {
+                console.error("Failed to load settings from DB, using defaults.", e);
+            }
+        }
+
+        function extractAndSetPalette(imageSrc) {
+            return new Promise((resolve) => {
+                if (!imageSrc) {
+                    currentPalette = [...defaultPalette];
+                    resolve();
+                    return;
+                }
+
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = imageSrc;
+                img.onload = () => {
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = img.width;
+                    tempCanvas.height = img.height;
+                    tempCtx.drawImage(img, 0, 0);
+
+                    try {
+                        const imageData = tempCtx.getImageData(0, 0, img.width, img.height).data;
+                        const colorCounts = {};
+                        for (let i = 0; i < imageData.length; i += 4 * 20) {
+                            const r = imageData[i];
+                            const g = imageData[i + 1];
+                            const b = imageData[i + 2];
+                            const R = Math.floor(r / 32) * 32;
+                            const G = Math.floor(g / 32) * 32;
+                            const B = Math.floor(b / 32) * 32;
+                            const color = `rgb(${R},${G},${B})`;
+                            if (R + G + B < 100 || R + G + B > 700) continue;
+                            colorCounts[color] = (colorCounts[color] || 0) + 1;
+                        }
+
+                        const sortedColors = Object.keys(colorCounts).sort((a, b) => colorCounts[b] - colorCounts[a]);
+                        const newPalette = sortedColors.slice(0, 5).map(rgb => {
+                            const [r, g, b] = rgb.match(/\d+/g).map(Number);
+                            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                        });
+
+                        currentPalette = newPalette.length >= 3 ? newPalette : [...defaultPalette];
+                    } catch (e) {
+                        console.error("Color extraction failed:", e);
+                        currentPalette = [...defaultPalette];
+                    }
+                    resolve();
+                };
+                img.onerror = () => {
+                    console.error("Failed to load image for palette extraction.");
+                    currentPalette = [...defaultPalette];
+                    resolve();
+                };
+            });
+        }
+        
+        // --- Adaptive Font Helpers ---
+        function setAdaptiveFontSize(element, text) {
+            if (!text || !element) return;
+            const containerWidth = element.offsetWidth;
+            if (containerWidth === 0) return;
+            let fontSize = 100;
+            element.style.fontSize = fontSize + 'px';
+            while (element.scrollWidth > containerWidth && fontSize > 10) {
+                fontSize -= 2;
+                element.style.fontSize = fontSize + 'px';
+            }
+            const maxFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) * 4;
+            if (fontSize > maxFontSize) {
+                element.style.fontSize = maxFontSize + 'px';
+            }
+        }
+
+        function setAdaptiveCanvasFont(text, fontFace, baseSize, maxWidth, style = '') {
+            if (!text) text = " ";
+            ctx.font = `${style} ${baseSize}px ${fontFace}`;
+            const textWidth = ctx.measureText(text).width;
+            let finalSize = baseSize;
+            if (textWidth > maxWidth) {
+                finalSize = Math.floor(baseSize * (maxWidth / textWidth));
+            }
+            ctx.font = `${style} ${finalSize}px ${fontFace}`;
+            return finalSize;
+        }
+
+        // --- PWA Setup ---
+        function setupPWA() {
+            const manifest = {
+              name: "Syvisuals",
+              short_name: "Syvisuals",
+              start_url: ".",
+              display: "standalone",
+              background_color: "#0a0a0a",
+              theme_color: "#0a0a0a",
+              description: "A futuristic music visualizer.",
+              icons: [
+                {
+                  "src": "https://placehold.co/192x192/00dfff/0a0a0a?text=SyV",
+                  "sizes": "192x192",
+                  "type": "image/png"
+                },
+                {
+                  "src": "https://placehold.co/512x512/00dfff/0a0a0a?text=Syvisuals",
+                  "sizes": "512x512",
+                  "type": "image/png"
+                }
+              ]
+            };
+            const manifestString = JSON.stringify(manifest);
+            const manifestBlob = new Blob([manifestString], {type: 'application/json'});
+            const manifestUrl = URL.createObjectURL(manifestBlob);
+            document.querySelector('#manifest').setAttribute('href', manifestUrl);
+
+            if ('serviceWorker' in navigator) {
+                const swJS = `
+                    const CACHE_NAME = 'syvisuals-cache-v1';
+                    const urlsToCache = [
+                      '.', 
+                      'https://cdn.tailwindcss.com',
+                      'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap',
+                      'https://fonts.googleapis.com/css2?family=Caveat&display=swap',
+                      'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+                      'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css',
+                      'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js',
+                      'https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js'
+                    ];
+
+                    self.addEventListener('install', event => {
+                      event.waitUntil(
+                        caches.open(CACHE_NAME)
+                          .then(cache => {
+                            console.log('Opened cache');
+                            const cachePromises = urlsToCache.map(urlToCache => {
+                                return cache.add(new Request(urlToCache, {mode: 'no-cors'})).catch(err => {
+                                    console.warn('Failed to cache:', urlToCache, err);
+                                });
+                            });
+                            return Promise.all(cachePromises);
+                          })
+                      );
+                    });
+
+                    self.addEventListener('fetch', event => {
+                      event.respondWith(
+                        caches.match(event.request)
+                          .then(response => {
+                            return response || fetch(event.request);
+                          })
+                      );
+                    });
+                `;
+                const blob = new Blob([swJS], { type: 'application/javascript' });
+                navigator.serviceWorker.register(URL.createObjectURL(blob))
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    }).catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            }
+        }
+
+        // --- App Start ---
+        window.onload = initializeApp;
+    </script>
+</body>
+</html>
