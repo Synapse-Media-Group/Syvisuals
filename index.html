@@ -602,7 +602,7 @@
         let deferredInstallPrompt = null;
 
         let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
-        let currentStyleId = 'bars', rotation = 0, particles = [], lyricAnimationState = {}, ribbonHistories = {};
+        let currentStyleId = 'bars', rotation = 0, particles = [], lyricAnimationState = {}, ribbonHistories = {}, neuroGridState = {};
         let repeatMode = 'none', isShuffled = false, isSeeking = false;
         
         let globalSettings = {};
@@ -628,6 +628,7 @@
             { id: 'spinning-spikes', name: 'Spinning Spikes', lyricsOnly: false }, { id: 'radial-burst', name: 'Radial Burst', lyricsOnly: false },
             { id: 'dancing-squares', name: 'Dancing Squares', lyricsOnly: false }, { id: 'audio-sun', name: 'Audio Sun', lyricsOnly: false },
             { id: 'frequency-ribbons', name: 'Frequency Ribbons', lyricsOnly: false },
+            { id: 'jungle-jitter', name: 'Jungle Jitter', lyricsOnly: false }, { id: 'neuro-grid', name: 'Neuro-Grid', lyricsOnly: false },
             { id: 'spotlight', name: 'Spotlight', lyricsOnly: true }, { id: 'focus', name: 'Focus', lyricsOnly: true }, 
             { id: 'cascade', name: 'Cascade', lyricsOnly: true }, { id: 'karaoke', name: 'Karaoke', lyricsOnly: true },
             { id: 'typewriter', name: 'Typewriter', lyricsOnly: true }, { id: 'reflection', name: 'Reflection', lyricsOnly: true },
@@ -906,6 +907,8 @@
                 case 'dancing-squares': drawDancingSquares(); break;
                 case 'audio-sun': drawAudioSun(); break;
                 case 'frequency-ribbons': drawFrequencyRibbons(); break;
+                case 'jungle-jitter': drawJungleJitter(); break;
+                case 'neuro-grid': drawNeuroGrid(); break;
                 case 'echo': drawEchoingText(); break;
                 case 'glitch': drawGlitchText(); break;
                 case 'kinetic': drawKineticType(); break;
@@ -1405,7 +1408,7 @@
             });
         }
 
-        // --- NEW INSTRUMENTAL VISUALIZERS ---
+        // --- PREVIOUSLY NEW INSTRUMENTAL VISUALIZERS ---
         function drawSpinningSpikes() {
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
@@ -1545,6 +1548,181 @@
                 }
                 ctx.stroke();
             }
+        }
+        
+        // --- DRUM N BASS VISUALIZERS ---
+        function drawJungleJitter() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Analyze frequency bands for DnB characteristics
+            const bass = dataArray.slice(0, 8).reduce((a, b) => a + b, 0) / 8; // Low bass for sub-bass kicks
+            const mids = dataArray.slice(64, 200).reduce((a, b) => a + b, 0) / 136; // Mid-range for synth lines
+            const highs = dataArray.slice(400, 512).reduce((a, b) => a + b, 0) / 112; // Highs for fast hi-hats/snares
+
+            // Bass kick effect - screen flash and shake
+            if (bass > 220) {
+                const intensity = (bass - 220) / 50;
+                ctx.fillStyle = `rgba(255, 255, 255, ${intensity})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Apply a slight screen shake
+                ctx.save();
+                ctx.translate((Math.random() - 0.5) * intensity * 20, (Math.random() - 0.5) * intensity * 20);
+            }
+
+            // High-frequency glitches - random sharp lines for snare/hats
+            const numGlitches = Math.floor(highs / 255 * 50);
+            for (let i = 0; i < numGlitches; i++) {
+                ctx.strokeStyle = currentPalette[i % currentPalette.length] + '80'; // semi-transparent
+                ctx.lineWidth = Math.random() * 3;
+                ctx.beginPath();
+                const x1 = Math.random() * canvas.width;
+                const y1 = Math.random() * canvas.height;
+                const x2 = x1 + (Math.random() - 0.5) * 100;
+                const y2 = y1 + (Math.random() - 0.5) * 100;
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            
+            // Mid-frequency rotating complex shapes for synth melodies
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            const numShapes = 5;
+            for (let i = 0; i < numShapes; i++) {
+                const size = 50 + (mids / 255) * 200 + (i * 20);
+                const angle = rotation + (i * Math.PI * 2 / numShapes);
+                
+                ctx.save();
+                ctx.rotate(angle);
+                
+                ctx.strokeStyle = currentPalette[i % currentPalette.length];
+                ctx.lineWidth = 2 + (mids / 255) * 5;
+                ctx.shadowColor = currentPalette[i % currentPalette.length];
+                ctx.shadowBlur = 15;
+                
+                // Draw a complex, spiky shape
+                ctx.beginPath();
+                ctx.moveTo(size * Math.cos(0), size * Math.sin(0));
+                for (let j = 1; j <= 6; j++) {
+                    const dataIndex = Math.floor((j / 6) * bufferLength * 0.5);
+                    const modSize = size * (0.5 + (dataArray[dataIndex] / 255) * 0.5);
+                    ctx.lineTo(modSize * Math.cos(j * Math.PI / 3), modSize * Math.sin(j * Math.PI / 3));
+                }
+                ctx.closePath();
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+            ctx.restore(); // Restore from center translation
+            if (bass > 220) ctx.restore(); // Restore from screen shake
+            ctx.shadowBlur = 0;
+            rotation += 0.002 + (bass / 255) * 0.01;
+        }
+
+        function drawNeuroGrid() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const fov = 300; // Field of view for 3D effect
+
+            // Initialize grid points if they don't exist
+            if (!neuroGridState.points) {
+                neuroGridState.points = [];
+                const gridSize = 20;
+                const spacing = 80;
+                for (let i = 0; i < gridSize; i++) {
+                    for (let j = 0; j < gridSize; j++) {
+                        neuroGridState.points.push({
+                            x: (i - gridSize / 2) * spacing,
+                            y: (j - gridSize / 2) * spacing,
+                            z: 0,
+                            baseZ: 0
+                        });
+                    }
+                }
+            }
+            
+            const bass = dataArray.slice(0, 16).reduce((a, b) => a + b, 0) / 16;
+            const mids = dataArray.slice(100, 200).reduce((a, b) => a + b, 0) / 100;
+
+            // Update grid points based on audio
+            neuroGridState.points.forEach(p => {
+                const distFromCenter = Math.hypot(p.x, p.y);
+                // Create a ripple effect from the center based on mid-range frequencies
+                const rippleEffect = Math.sin(distFromCenter / 100 - Date.now() * 0.005) * (mids / 255) * 100;
+                p.z = p.baseZ + rippleEffect;
+            });
+
+            // Bass punch effect, pushes the whole grid
+            const punch = (bass / 255) * 400;
+            
+            // Draw grid lines
+            ctx.strokeStyle = currentPalette[0];
+            ctx.lineWidth = 1.5;
+            ctx.shadowColor = currentPalette[1];
+            ctx.shadowBlur = 10;
+            
+            const gridSize = 20;
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const p1 = neuroGridState.points[i * gridSize + j];
+                    
+                    // Project point 1 into 2D space
+                    const scale1 = fov / (fov + p1.z + punch);
+                    const x1 = centerX + p1.x * scale1;
+                    const y1 = centerY + p1.y * scale1;
+
+                    // Draw line to right neighbor
+                    if (i < gridSize - 1) {
+                        const p2 = neuroGridState.points[(i + 1) * gridSize + j];
+                        const scale2 = fov / (fov + p2.z + punch);
+                        const x2 = centerX + p2.x * scale2;
+                        const y2 = centerY + p2.y * scale2;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                    }
+                    
+                    // Draw line to bottom neighbor
+                    if (j < gridSize - 1) {
+                        const p3 = neuroGridState.points[i * gridSize + (j + 1)];
+                        const scale3 = fov / (fov + p3.z + punch);
+                        const x3 = centerX + p3.x * scale3;
+                        const y3 = centerY + p3.y * scale3;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x3, y3);
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.shadowBlur = 0;
+
+            // Particle system on top for high-frequency detail
+            const highFreq = dataArray.slice(300, 500).reduce((a, b) => a + b, 0) / 200;
+            if (particles.length < 200 && highFreq > 100) {
+                 for (let i = 0; i < 5; i++) {
+                     particles.push({
+                         x: Math.random() * canvas.width,
+                         y: Math.random() * canvas.height,
+                         life: 1,
+                         vx: (Math.random() - 0.5) * 4,
+                         vy: (Math.random() - 0.5) * 4,
+                         color: currentPalette[2 + (i % 3)]
+                     });
+                 }
+            }
+            particles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.02;
+                if (p.life <= 0) particles.splice(i, 1);
+                ctx.fillStyle = `${p.color}${Math.round(p.life * 255).toString(16).padStart(2, '0')}`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
         }
 
 
@@ -2128,9 +2306,12 @@
         function updateStyle(newId) {
             if (newId === currentStyleId && document.querySelector(`#controls-for-${newId}:not(.hidden)`)) return;
             
+            // Reset state for visualizers that use these arrays
             particles = []; 
             lyricAnimationState = {}; 
-            ribbonHistories = {}; // Reset ribbon history on style change
+            ribbonHistories = {};
+            neuroGridState = {};
+            
             currentStyleId = newId;
             globalSettings.lastTheme = newId;
             saveSettings('globalSettings', globalSettings);
