@@ -171,7 +171,15 @@
         }
 
         #integrated-queue-wrapper {
-            transition: max-height 0.5s ease-in-out, opacity 0.5s;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out;
+        }
+
+        #now-playing-panel.queue-visible #integrated-queue-wrapper {
+            max-height: 50vh;
+            opacity: 1;
+            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease-in;
         }
 
         .scrollable-list { overflow-y: auto; flex-grow: 1; }
@@ -217,7 +225,7 @@
             max-height: 80vh; display: flex; flex-direction: column;
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.95);
-            transition: opacity 0.3s ease, transform 0.3s ease;
+            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             pointer-events: none;
             z-index: 100;
         }
@@ -231,7 +239,7 @@
             max-height: 100%;
             border-radius: 0;
             transform: translateY(100%);
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         #theme-list-modal {
@@ -416,7 +424,7 @@
             <svg id="queue-arrow" class="w-5 h-5 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </div>
         
-        <div id="integrated-queue-wrapper" class="hidden overflow-hidden mt-3">
+        <div id="integrated-queue-wrapper" class="overflow-hidden mt-3">
             <h2 class="text-lg font-bold mb-2 text-cyan-400">Up Next</h2>
             <div id="queue-items" class="scrollable-list max-h-48"></div>
             <button id="clear-queue-btn" class="mt-2 w-full text-center py-1 px-2 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-xs">Clear Queue</button>
@@ -1611,17 +1619,55 @@
         function setupEventListeners() {
             window.addEventListener('resize', resizeCanvas);
             
-            // Double tap/click listener for UI toggle
+            // --- Gesture Listeners (Double Tap & Swipe) ---
             let lastTap = 0;
+            let touchStartX = 0;
+            let touchStartY = 0;
+
             canvas.addEventListener('touchend', (e) => {
                 const currentTime = new Date().getTime();
                 const tapLength = currentTime - lastTap;
+                
+                // Double tap to toggle UI
                 if (tapLength < 300 && tapLength > 0) {
                     toggleUI();
                     e.preventDefault();
                 }
                 lastTap = currentTime;
+
+                // Swipe gesture end
+                if (touchStartX !== 0) {
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    const deltaX = touchEndX - touchStartX;
+                    const deltaY = touchEndY - touchStartY;
+                    
+                    // Check for horizontal swipe
+                    if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 50) {
+                        if (deltaX < 0) { // Swipe Left
+                            cycleStyle(1);
+                        } else { // Swipe Right
+                            cycleStyle(-1);
+                        }
+                    }
+                }
+                touchStartX = 0;
+                touchStartY = 0;
             });
+            
+            canvas.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                 if (touchStartX === 0) return;
+                 const deltaX = e.touches[0].clientX - touchStartX;
+                 if (Math.abs(deltaX) > 10) { // If horizontal movement, prevent vertical scroll
+                    e.preventDefault();
+                 }
+            });
+
             canvas.addEventListener('dblclick', toggleUI);
             
             const audioFileInput = document.getElementById('audio-file-input');
@@ -1748,20 +1794,14 @@
             });
 
             // Now Playing Panel & Integrated Queue Listeners
-            nowPlayingPanel.addEventListener('click', (e) => {
-                // Toggle queue visibility
-                if (e.target.closest('#now-playing-toggle-area')) {
-                    const wrapper = document.getElementById('integrated-queue-wrapper');
-                    nowPlayingPanel.classList.toggle('queue-visible');
-                    wrapper.classList.toggle('hidden');
-                }
+            document.getElementById('now-playing-toggle-area').addEventListener('click', () => {
+                nowPlayingPanel.classList.toggle('queue-visible');
+            });
 
-                // Handle clear queue
-                if (e.target.closest('#clear-queue-btn')) {
-                    playQueue = [];
-                    currentQueueIndex = -1;
-                    renderQueue();
-                }
+            document.getElementById('clear-queue-btn').addEventListener('click', () => {
+                playQueue = [];
+                currentQueueIndex = -1;
+                renderQueue();
             });
 
             queueItemsContainer.addEventListener('click', (e) => {
