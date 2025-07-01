@@ -602,7 +602,7 @@
         let deferredInstallPrompt = null;
 
         let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
-        let currentStyleId = 'bars', rotation = 0, particles = [], lyricAnimationState = {};
+        let currentStyleId = 'bars', rotation = 0, particles = [], lyricAnimationState = {}, ribbonHistories = {};
         let repeatMode = 'none', isShuffled = false, isSeeking = false;
         
         let globalSettings = {};
@@ -625,6 +625,9 @@
             { id: 'wavemirror', name: 'Wave Mirror', lyricsOnly: false }, { id: 'vortex', name: 'Vortex', lyricsOnly: false },
             { id: 'towers', name: 'Towers', lyricsOnly: false }, { id: 'rings', name: 'Rings', lyricsOnly: false },
             { id: 'nebula', name: 'Nebula', lyricsOnly: false }, { id: 'rain', name: 'Digital Rain', lyricsOnly: false },
+            { id: 'spinning-spikes', name: 'Spinning Spikes', lyricsOnly: false }, { id: 'radial-burst', name: 'Radial Burst', lyricsOnly: false },
+            { id: 'dancing-squares', name: 'Dancing Squares', lyricsOnly: false }, { id: 'audio-sun', name: 'Audio Sun', lyricsOnly: false },
+            { id: 'frequency-ribbons', name: 'Frequency Ribbons', lyricsOnly: false },
             { id: 'spotlight', name: 'Spotlight', lyricsOnly: true }, { id: 'focus', name: 'Focus', lyricsOnly: true }, 
             { id: 'cascade', name: 'Cascade', lyricsOnly: true }, { id: 'karaoke', name: 'Karaoke', lyricsOnly: true },
             { id: 'typewriter', name: 'Typewriter', lyricsOnly: true }, { id: 'reflection', name: 'Reflection', lyricsOnly: true },
@@ -898,6 +901,11 @@
                 case 'rings': drawChromaticRings(); break;
                 case 'nebula': drawBassNebula(); break;
                 case 'rain': drawDigitalRain(); break;
+                case 'spinning-spikes': drawSpinningSpikes(); break;
+                case 'radial-burst': drawRadialBurst(); break;
+                case 'dancing-squares': drawDancingSquares(); break;
+                case 'audio-sun': drawAudioSun(); break;
+                case 'frequency-ribbons': drawFrequencyRibbons(); break;
                 case 'echo': drawEchoingText(); break;
                 case 'glitch': drawGlitchText(); break;
                 case 'kinetic': drawKineticType(); break;
@@ -1173,7 +1181,7 @@
             ctx.restore();
         }
 
-        // --- NEW INSTRUMENTAL VISUALIZERS ---
+        // --- EXISTING INSTRUMENTAL VISUALIZERS ---
         function drawSpectrumOrb() {
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
@@ -1396,6 +1404,149 @@
                 if (p.y > canvas.height) p.y = 0;
             });
         }
+
+        // --- NEW INSTRUMENTAL VISUALIZERS ---
+        function drawSpinningSpikes() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const numSpikes = 128;
+            const baseRadius = 50;
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            rotation += 0.005;
+            ctx.rotate(rotation);
+            for (let i = 0; i < numSpikes; i++) {
+                const angle = (i / numSpikes) * Math.PI * 2;
+                const dataIndex = Math.floor((i / numSpikes) * bufferLength);
+                const spikeLength = (dataArray[dataIndex] / 255) * (canvas.height / 3);
+                
+                ctx.strokeStyle = currentPalette[i % currentPalette.length];
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * baseRadius, Math.sin(angle) * baseRadius);
+                ctx.lineTo(Math.cos(angle) * (baseRadius + spikeLength), Math.sin(angle) * (baseRadius + spikeLength));
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawRadialBurst() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const numLines = 180;
+            for (let i = 0; i < numLines; i++) {
+                const dataIndex = Math.floor((i / numLines) * bufferLength);
+                const value = dataArray[dataIndex] / 255;
+                const angle = (i / numLines) * Math.PI * 2;
+                const length = value * (canvas.width / 4);
+                
+                const x2 = centerX + Math.cos(angle) * length;
+                const y2 = centerY + Math.sin(angle) * length;
+                
+                ctx.strokeStyle = `${currentPalette[i % currentPalette.length]}${Math.round(value * 200 + 55).toString(16).padStart(2, '0')}`;
+                ctx.lineWidth = value * 4 + 1;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+        }
+
+        function drawDancingSquares() {
+            const gridSize = 20;
+            const stepX = canvas.width / gridSize;
+            const stepY = canvas.height / gridSize;
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const dataIndex = (i * gridSize + j) % bufferLength;
+                    const value = dataArray[dataIndex] / 255;
+                    const size = value * Math.min(stepX, stepY);
+                    const centerX = i * stepX + stepX / 2;
+                    const centerY = j * stepY + stepY / 2;
+                    
+                    ctx.fillStyle = currentPalette[(i + j) % currentPalette.length];
+                    ctx.fillRect(centerX - size / 2, centerY - size / 2, size, size);
+                }
+            }
+        }
+
+        function drawAudioSun() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const bass = dataArray.slice(0, 32).reduce((a, b) => a + b, 0) / (32 * 255);
+            
+            // Sun's core
+            const coreRadius = 50 + bass * 100;
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius);
+            gradient.addColorStop(0, `${currentPalette[1]}ff`);
+            gradient.addColorStop(0.8, `${currentPalette[0]}b3`);
+            gradient.addColorStop(1, `${currentPalette[0]}00`);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, coreRadius * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Sun's rays
+            const numRays = 64;
+            for (let i = 0; i < numRays; i++) {
+                const dataIndex = Math.floor((i / numRays) * bufferLength);
+                const value = dataArray[dataIndex] / 255;
+                const angle = (i / numRays) * Math.PI * 2;
+                const rayLength = coreRadius + value * (canvas.height / 4);
+                
+                ctx.strokeStyle = `${currentPalette[i % currentPalette.length]}80`;
+                ctx.lineWidth = value * 5 + 1;
+                ctx.beginPath();
+                ctx.moveTo(centerX + Math.cos(angle) * coreRadius, centerY + Math.sin(angle) * coreRadius);
+                ctx.lineTo(centerX + Math.cos(angle) * rayLength, centerY + Math.sin(angle) * rayLength);
+                ctx.stroke();
+            }
+        }
+
+        function drawFrequencyRibbons() {
+            const numRibbons = 5;
+            const historyLength = 100;
+            const stepX = canvas.width / historyLength;
+
+            // Initialize histories if they don't exist
+            if (Object.keys(ribbonHistories).length === 0) {
+                for (let i = 0; i < numRibbons; i++) {
+                    ribbonHistories[i] = Array(historyLength).fill(canvas.height / 2);
+                }
+            }
+
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            for (let i = 0; i < numRibbons; i++) {
+                // Get average frequency for this ribbon's band
+                const bandStart = Math.floor(i * (bufferLength / 2) / numRibbons);
+                const bandEnd = Math.floor((i + 1) * (bufferLength / 2) / numRibbons);
+                let sum = 0;
+                for (let j = bandStart; j < bandEnd; j++) {
+                    sum += dataArray[j];
+                }
+                const avg = sum / (bandEnd - bandStart);
+                
+                // Update history
+                const newY = (canvas.height / 2) + (avg - 128) * (globalSettings.sensitivity * 2);
+                ribbonHistories[i].shift();
+                ribbonHistories[i].push(newY);
+
+                // Draw the ribbon
+                ctx.strokeStyle = currentPalette[i % currentPalette.length];
+                ctx.beginPath();
+                ctx.moveTo(0, ribbonHistories[i][0]);
+                for (let k = 1; k < historyLength - 2; k++) {
+                    const xc = (k * stepX + (k + 1) * stepX) / 2;
+                    const yc = (ribbonHistories[i][k] + ribbonHistories[i][k + 1]) / 2;
+                    ctx.quadraticCurveTo(k * stepX, ribbonHistories[i][k], xc, yc);
+                }
+                ctx.stroke();
+            }
+        }
+
 
         // --- NEW LYRIC VISUALIZERS ---
         function drawEchoingText() {
@@ -1979,6 +2130,7 @@
             
             particles = []; 
             lyricAnimationState = {}; 
+            ribbonHistories = {}; // Reset ribbon history on style change
             currentStyleId = newId;
             globalSettings.lastTheme = newId;
             saveSettings('globalSettings', globalSettings);
