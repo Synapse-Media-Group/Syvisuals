@@ -22,7 +22,7 @@
             --primary-color: #00dfff;
             --dark-color: #0a0a0a;
             --light-text: #e0e0e0;
-            --dim-text: #a0a0a0;
+            --dim-text: #a0a0a;
         }
         html {
             font-size: 16px; /* Base font size for UI scaling */
@@ -57,24 +57,13 @@
             grid-template-areas:
                 "header"
                 "main"
-                "settings";
+                "footer";
             padding: 1rem;
             gap: 1rem;
             pointer-events: none;
             transition: opacity 0.5s ease-in-out;
         }
-        @media (min-width: 768px) {
-            #ui-container {
-                grid-template-columns: 1fr 1fr;
-                grid-template-rows: auto 1fr auto;
-                grid-template-areas:
-                    "header header"
-                    "main main"
-                    "settings .";
-                padding: 2rem;
-                gap: 1.5rem;
-            }
-        }
+        
         #ui-container > * { pointer-events: auto; }
         .hidden { display: none !important; }
         .opacity-0 { opacity: 0; pointer-events: none; }
@@ -99,7 +88,56 @@
             border-width: 0 !important;
         }
 
-        #bottom-left-controls { grid-area: settings; align-self: end; display: flex; gap: 0.5rem;}
+        /* --- Desktop Layout --- */
+        @media (min-width: 768px) {
+            #ui-container {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto 1fr auto;
+                grid-template-areas:
+                    "header header"
+                    "main main"
+                    "footer .";
+                padding: 2rem;
+                gap: 1.5rem;
+            }
+             #bottom-controls { grid-area: footer; align-self: end; display: flex; gap: 0.5rem;}
+        }
+
+        /* --- Mobile Layout --- */
+        body.mobile-layout #bottom-controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(15px);
+            border-top: 1px solid rgba(0, 223, 255, 0.2);
+            padding: 0.5rem 0;
+            z-index: 90;
+        }
+        body.mobile-layout .bottom-nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.7rem;
+            color: var(--dim-text);
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+        body.mobile-layout .bottom-nav-btn.active,
+        body.mobile-layout .bottom-nav-btn:active {
+            color: var(--primary-color);
+        }
+        body.mobile-layout .bottom-nav-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
         #queue-panel { 
             position: fixed;
             bottom: 8rem;
@@ -113,16 +151,13 @@
             pointer-events: auto;
             z-index: 10;
         }
-        @media (max-width: 767px) {
-            #bottom-left-controls { justify-self: center; }
-            #queue-panel { 
-                left: 50%;
-                right: auto;
-                transform: translateX(-50%);
-                bottom: 8rem; 
-            }
+        
+        body.mobile-layout #queue-panel {
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(6rem + env(safe-area-inset-bottom)); /* Adjust for bottom nav */
+            width: 90vw;
         }
-
 
         #now-playing-panel {
             position: absolute;
@@ -132,6 +167,13 @@
             transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
             z-index: 50;
         }
+        body.mobile-layout #now-playing-panel {
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            width: auto;
+        }
+
         #now-playing-art {
              transition: width 0.3s ease, height 0.3s ease;
         }
@@ -192,17 +234,42 @@
             pointer-events: none;
             z-index: 100;
         }
+        
+        body.mobile-layout .modal {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 0;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
         #theme-list-modal {
             top: 2rem;
             transform: translate(-50%, 0);
         }
+        body.mobile-layout #theme-list-modal {
+            transform: translateY(100%);
+        }
+
         .modal:not(.opacity-0) {
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
             pointer-events: auto;
         }
+        
+        body.mobile-layout .modal:not(.opacity-0) {
+             transform: translateY(0);
+        }
+
         #theme-list-modal:not(.opacity-0) {
             transform: translate(-50%, 0) scale(1);
+        }
+        body.mobile-layout #theme-list-modal:not(.opacity-0) {
+             transform: translateY(0);
         }
         
         .control-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
@@ -224,8 +291,13 @@
         #playback-controls { 
             position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); 
             width: 90%; max-width: 650px; 
-            transition: opacity 0.5s ease-in-out; pointer-events: auto; 
+            transition: opacity 0.5s ease-in-out, bottom 0.3s ease-in-out; pointer-events: auto; 
+            z-index: 80;
         }
+        body.mobile-layout #playback-controls {
+            bottom: calc(4.5rem + env(safe-area-inset-bottom));
+        }
+
         .custom-player { 
             background: rgba(10, 10, 10, 0.7); backdrop-filter: blur(15px); 
             border: 1px solid rgba(0, 223, 255, 0.2); border-radius: 50px; 
@@ -335,16 +407,8 @@
     <div id="theme-toast" class="toast"></div>
 
     <div id="ui-container">
-        <div id="bottom-left-controls">
-             <button id="library-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
-                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
-             </button>
-             <button id="themes-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
-                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 3.293A1 1 0 0118 4v12a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h1.293A1 1 0 016 3.707L10 7.414l4-3.707a1 1 0 011.293-.414zM10 9.414l-6-5.5V16h12V3.914l-6 5.5z"></path><path d="M10 12.586l4-3.707V16h-2v-2.586l-2 1.833-2-1.833V16H4v-7.121l4 3.707a1 1 0 001.293-.001z"></path></svg>
-             </button>
-             <button id="settings-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
-                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-1.57 1.996A1.532 1.532 0 013.17 7.49c-1.56.38-1.56 2.6 0 2.98a1.532 1.532 0 01.948 2.286c-.836 1.372.734 2.942 1.996 1.57A1.532 1.532 0 017.49 16.83c.38 1.56 2.6 1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 1.57-1.996A1.532 1.532 0 0116.83 12.51c1.56-.38 1.56-2.6 0-2.98a1.532 1.532 0 01-.948-2.286c.836-1.372-.734-2.942-1.996-1.57A1.532 1.532 0 0111.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z"></path></svg>
-             </button>
+        <div id="bottom-controls">
+             <!-- This will be populated by JS based on device -->
         </div>
     </div>
     
@@ -485,17 +549,19 @@
         const audioPlayer = document.getElementById('audio-player');
         const uiContainer = document.getElementById('ui-container'), lyricsContainer = document.getElementById('lyrics-container');
         const queueItemsContainer = document.getElementById('queue-items');
-        const settingsBtn = document.getElementById('settings-btn'), settingsModal = document.getElementById('settings-modal');
-        const libraryBtn = document.getElementById('library-btn'), fullLibraryModal = document.getElementById('full-library-modal');
-        const themesBtn = document.getElementById('themes-btn'), themeListModal = document.getElementById('theme-list-modal');
+        const settingsModal = document.getElementById('settings-modal');
+        const fullLibraryModal = document.getElementById('full-library-modal');
+        const themeListModal = document.getElementById('theme-list-modal');
         const playbackControls = document.getElementById('playback-controls');
         const nowPlayingToast = document.getElementById('now-playing-toast');
         const themeToast = document.getElementById('theme-toast');
         const playlistManagementModal = document.getElementById('playlist-management-modal');
         const modalOverlay = document.getElementById('modal-overlay');
+        const bottomControls = document.getElementById('bottom-controls');
         
         let audioContext, analyser, source, dataArray, bufferLength;
         let db;
+        let deferredInstallPrompt = null;
 
         let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
         let currentStyleId = 'bars', rotation = 0, particles = [], recentLyrics = [], lyricAnimationState = {};
@@ -542,8 +608,15 @@
         const deleteSVG = `<svg class="w-5 h-5 fill-current text-red-500/70 hover:text-red-500" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>`;
         const playSVG = `<svg class="w-5 h-5 fill-current text-green-400/70 hover:text-green-400" viewBox="0 0 20 20"><path d="M4.018 15.59a1.5 1.5 0 002.122.149l9.362-6.554a1.5 1.5 0 000-2.368L6.14 3.263A1.5 1.5 0 004.018 4.41v11.18z"></path></svg>`;
 
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
         async function initializeApp() {
             document.title = "Syvisuals";
+            if (isMobileDevice()) {
+                document.body.classList.add('mobile-layout');
+            }
             setupPWA();
             resizeCanvas();
             await setupDatabase();
@@ -558,6 +631,7 @@
         }
 
         function buildUI() {
+            // Build Playback Controls (same for both layouts)
             playbackControls.innerHTML = `
                 <div class="custom-player">
                     <button id="shuffle-btn" class="playback-btn">${shuffleSVG}</button>
@@ -579,6 +653,37 @@
                     </div>
                 </div>`;
             
+            // Build Bottom Controls (desktop buttons or mobile nav)
+            if (isMobileDevice()) {
+                 bottomControls.innerHTML = `
+                    <button id="library-btn" class="bottom-nav-btn">
+                        <svg viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
+                        <span>Library</span>
+                    </button>
+                    <button id="themes-btn" class="bottom-nav-btn">
+                        <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 3.293A1 1 0 0118 4v12a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h1.293A1 1 0 016 3.707L10 7.414l4-3.707a1 1 0 011.293-.414zM10 9.414l-6-5.5V16h12V3.914l-6 5.5z"></path><path d="M10 12.586l4-3.707V16h-2v-2.586l-2 1.833-2-1.833V16H4v-7.121l4 3.707a1 1 0 001.293-.001z"></path></svg>
+                        <span>Themes</span>
+                    </button>
+                    <button id="settings-btn" class="bottom-nav-btn">
+                        <svg viewBox="0 0 20 20"><path d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-1.57 1.996A1.532 1.532 0 013.17 7.49c-1.56.38-1.56 2.6 0 2.98a1.532 1.532 0 01.948 2.286c-.836 1.372.734 2.942 1.996 1.57A1.532 1.532 0 017.49 16.83c.38 1.56 2.6 1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 1.57-1.996A1.532 1.532 0 0116.83 12.51c1.56-.38 1.56-2.6 0-2.98a1.532 1.532 0 01-.948-2.286c.836-1.372-.734-2.942-1.996-1.57A1.532 1.532 0 0111.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z"></path></svg>
+                        <span>Settings</span>
+                    </button>
+                 `;
+            } else {
+                 bottomControls.innerHTML = `
+                    <button id="library-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
+                         <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
+                    </button>
+                    <button id="themes-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
+                         <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 3.293A1 1 0 0118 4v12a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h1.293A1 1 0 016 3.707L10 7.414l4-3.707a1 1 0 011.293-.414zM10 9.414l-6-5.5V16h12V3.914l-6 5.5z"></path><path d="M10 12.586l4-3.707V16h-2v-2.586l-2 1.833-2-1.833V16H4v-7.121l4 3.707a1 1 0 001.293-.001z"></path></svg>
+                    </button>
+                    <button id="settings-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
+                         <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-1.57 1.996A1.532 1.532 0 013.17 7.49c-1.56.38-1.56 2.6 0 2.98a1.532 1.532 0 01.948 2.286c-.836 1.372.734 2.942 1.996 1.57A1.532 1.532 0 017.49 16.83c.38 1.56 2.6 1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 1.57-1.996A1.532 1.532 0 0116.83 12.51c1.56-.38 1.56-2.6 0-2.98a1.532 1.532 0 01-.948-2.286c.836-1.372-.734-2.942-1.996-1.57A1.532 1.532 0 0111.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z"></path></svg>
+                    </button>
+                 `;
+            }
+
+            // Build Settings Modal
             settingsModal.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Settings</h2>
@@ -586,25 +691,29 @@
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
-                <div id="theme-settings-container">
-                    <div id="controls-for-bars" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Bar Controls</h3><div class="control-grid"><div class="control-item"><label>Width</label><input type="range" data-setting="barWidth" min="1" max="15" step="1"></div><div class="control-item"><label>Spacing</label><input type="range" data-setting="barSpacing" min="1" max="10" step="1"></div></div></div>
-                    <div id="controls-for-circle" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Circle Controls</h3><div class="control-grid"><div class="control-item"><label>Radius</label><input type="range" data-setting="circleRadius" min="50" max="200" step="1"></div><div class="control-item"><label>Rotation</label><input type="range" data-setting="circleRotationSpeed" min="0" max="0.01" step="0.0005"></div></div></div>
-                    <div id="controls-for-waveform" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Waveform Controls</h3><div class="control-grid grid-cols-1"><div class="control-item"><label>Thickness</label><input type="range" data-setting="waveThickness" min="1" max="10" step="1"></div></div></div>
-                    <div id="controls-for-neonwave" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Neon Controls</h3><div class="control-grid grid-cols-1"><div class="control-item"><label>Thickness</label><input type="range" data-setting="neonThickness" min="1" max="10" step="1"></div></div></div>
-                    <div id="controls-for-particles" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Particle Controls</h3><div class="control-grid"><div class="control-item"><label>Size</label><input type="range" data-setting="particleSize" min="1" max="10" step="1"></div><div class="control-item"><label>Speed</label><input type="range" data-setting="particleSpeed" min="0.1" max="5" step="0.1"></div></div></div>
-                    <div id="controls-for-spotlight" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Spotlight Controls</h3><div class="control-grid"><div class="control-item"><label>Beam Size</label><input type="range" data-setting="beamSize" min="5" max="50" step="1"></div><div class="control-item"><label>Intensity</label><input type="range" data-setting="beamIntensity" min="0.1" max="1" step="0.05"></div></div></div>
-                    <button id="reset-theme-settings-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm hidden">Reset Theme Settings</button>
-                </div>
-                <div class="mt-4 pt-4 border-t border-gray-700">
-                    <h3 class="text-lg font-bold mb-3">Global Controls</h3>
-                    <div class="control-grid">
-                        <div class="control-item"><label>Sensitivity</label><input type="range" data-setting="sensitivity" data-is-global="true" min="0.1" max="3" value="1" step="0.1"></div>
-                        <div class="control-item"><label>Smoothing</label><input type="range" data-setting="smoothing" data-is-global="true" min="0" max="0.99" value="0.85" step="0.01"></div>
-                        <div class="control-item col-span-2"><label>UI Scale</label><input type="range" data-setting="uiScale" data-is-global="true" min="0.8" max="1.5" value="1" step="0.05"></div>
+                <div class="scrollable-list flex-grow pr-2">
+                    <div id="theme-settings-container">
+                        <div id="controls-for-bars" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Bar Controls</h3><div class="control-grid"><div class="control-item"><label>Width</label><input type="range" data-setting="barWidth" min="1" max="15" step="1"></div><div class="control-item"><label>Spacing</label><input type="range" data-setting="barSpacing" min="1" max="10" step="1"></div></div></div>
+                        <div id="controls-for-circle" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Circle Controls</h3><div class="control-grid"><div class="control-item"><label>Radius</label><input type="range" data-setting="circleRadius" min="50" max="200" step="1"></div><div class="control-item"><label>Rotation</label><input type="range" data-setting="circleRotationSpeed" min="0" max="0.01" step="0.0005"></div></div></div>
+                        <div id="controls-for-waveform" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Waveform Controls</h3><div class="control-grid grid-cols-1"><div class="control-item"><label>Thickness</label><input type="range" data-setting="waveThickness" min="1" max="10" step="1"></div></div></div>
+                        <div id="controls-for-neonwave" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Neon Controls</h3><div class="control-grid grid-cols-1"><div class="control-item"><label>Thickness</label><input type="range" data-setting="neonThickness" min="1" max="10" step="1"></div></div></div>
+                        <div id="controls-for-particles" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Particle Controls</h3><div class="control-grid"><div class="control-item"><label>Size</label><input type="range" data-setting="particleSize" min="1" max="10" step="1"></div><div class="control-item"><label>Speed</label><input type="range" data-setting="particleSpeed" min="0.1" max="5" step="0.1"></div></div></div>
+                        <div id="controls-for-spotlight" class="style-controls hidden"><h3 class="text-lg font-bold mb-3">Spotlight Controls</h3><div class="control-grid"><div class="control-item"><label>Beam Size</label><input type="range" data-setting="beamSize" min="5" max="50" step="1"></div><div class="control-item"><label>Intensity</label><input type="range" data-setting="beamIntensity" min="0.1" max="1" step="0.05"></div></div></div>
+                        <button id="reset-theme-settings-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm hidden">Reset Theme Settings</button>
                     </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700">
+                        <h3 class="text-lg font-bold mb-3">Global Controls</h3>
+                        <div class="control-grid">
+                            <div class="control-item"><label>Sensitivity</label><input type="range" data-setting="sensitivity" data-is-global="true" min="0.1" max="3" value="1" step="0.1"></div>
+                            <div class="control-item"><label>Smoothing</label><input type="range" data-setting="smoothing" data-is-global="true" min="0" max="0.99" value="0.85" step="0.01"></div>
+                            <div class="control-item col-span-2"><label>UI Scale</label><input type="range" data-setting="uiScale" data-is-global="true" min="0.8" max="1.5" value="1" step="0.05"></div>
+                        </div>
+                    </div>
+                    <div id="pwa-install-container" class="mt-4 pt-4 border-t border-gray-700"></div>
                 </div>
-                <p class="text-center text-xs text-gray-500 mt-6">made with love from the Synapse Media Team &nbsp;💕</p>
+                <p class="text-center text-xs text-gray-500 mt-6 flex-shrink-0">made with love from the Synapse Media Team &nbsp;💕</p>
             `;
+            updatePWAInstallButton();
         }
         
         function setupAudioContext() {
@@ -1486,10 +1595,12 @@
 
             
             window.addEventListener('keydown', handleKeyPress);
-            settingsBtn.addEventListener('click', toggleSettings);
-            libraryBtn.addEventListener('click', toggleLibrary);
-            themesBtn.addEventListener('click', toggleThemeList);
             
+            // These buttons exist in both layouts, so we can add listeners directly
+            document.getElementById('settings-btn').addEventListener('click', toggleSettings);
+            document.getElementById('library-btn').addEventListener('click', toggleLibrary);
+            document.getElementById('themes-btn').addEventListener('click', toggleThemeList);
+
             // Back/Close button listeners
             document.getElementById('close-library-btn').addEventListener('click', () => toggleLibrary(false));
             document.getElementById('close-settings-btn').addEventListener('click', () => toggleSettings(false));
@@ -1632,7 +1743,7 @@
         function toggleUI() {
             globalSettings.isUiVisible = !globalSettings.isUiVisible;
             document.getElementById('queue-panel').classList.toggle('opacity-0', !globalSettings.isUiVisible);
-            document.getElementById('bottom-left-controls').classList.toggle('opacity-0', !globalSettings.isUiVisible);
+            bottomControls.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             playbackControls.classList.toggle('autohide', !globalSettings.isUiVisible);
             saveSettings('globalSettings', globalSettings);
         }
@@ -1988,8 +2099,8 @@
                 shuffleQueue(true, libraryIndex);
             } else {
                  playQueue = library.map((s, i) => ({ songId: s.id, originalIndex: i }))
-                     .slice(libraryIndex)
-                     .concat(library.map((s, i) => ({ songId: s.id, originalIndex: i })).slice(0, libraryIndex));
+                      .slice(libraryIndex)
+                      .concat(library.map((s, i) => ({ songId: s.id, originalIndex: i })).slice(0, libraryIndex));
             }
             playSongFromQueue();
         }
@@ -2088,9 +2199,9 @@
             if (playQueue.length > 0) {
                  if(isShuffled) shuffleQueue(true);
                  else {
-                   const currentSongId = playQueue[currentQueueIndex].songId;
-                   const libIndex = library.findIndex(s => s.id === currentSongId);
-                   playFromLibrary(libIndex !== -1 ? currentSongId : (library[0]?.id || -1));
+                  const currentSongId = playQueue[currentQueueIndex].songId;
+                  const libIndex = library.findIndex(s => s.id === currentSongId);
+                  playFromLibrary(libIndex !== -1 ? currentSongId : (library[0]?.id || -1));
                  }
                  renderQueue();
             }
@@ -2209,10 +2320,10 @@
                 const song = library.find(s => s.id === songId);
                 if (!song) return '';
                 return `<div class="list-item" data-song-id="${song.id}">
-                            ${musicNoteSVG}
-                            <span class="flex-grow">${song.title}</span>
-                            <button class="remove-song-from-playlist-btn p-1 rounded-full hover:bg-red-500/20">${deleteSVG}</button>
-                        </div>`;
+                             ${musicNoteSVG}
+                             <span class="flex-grow">${song.title}</span>
+                             <button class="remove-song-from-playlist-btn p-1 rounded-full hover:bg-red-500/20">${deleteSVG}</button>
+                         </div>`;
             }).join('');
         }
 
@@ -2771,6 +2882,26 @@
         }
 
         // --- PWA Setup ---
+        function updatePWAInstallButton() {
+            const container = document.getElementById('pwa-install-container');
+            if (!container) return;
+
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+            if (isMobileDevice() && deferredInstallPrompt && !isStandalone) {
+                container.innerHTML = `<button id="pwa-install-btn" class="w-full text-center py-3 px-4 bg-cyan-500/80 hover:bg-cyan-500 rounded-lg font-bold text-black">Install App</button>`;
+                document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+                    deferredInstallPrompt.prompt();
+                    const { outcome } = await deferredInstallPrompt.userChoice;
+                    console.log(`User response to the install prompt: ${outcome}`);
+                    deferredInstallPrompt = null;
+                    container.innerHTML = ''; // Hide button after prompt
+                });
+            } else {
+                container.innerHTML = ''; // Clear if not applicable
+            }
+        }
+
         function setupPWA() {
             const manifest = {
               name: "Syvisuals",
@@ -2798,18 +2929,24 @@
             const manifestUrl = URL.createObjectURL(manifestBlob);
             document.querySelector('#manifest').setAttribute('href', manifestUrl);
 
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredInstallPrompt = e;
+                updatePWAInstallButton();
+            });
+
             if ('serviceWorker' in navigator) {
                 const swJS = `
                     const CACHE_NAME = 'syvisuals-cache-v1';
                     const urlsToCache = [
-                      '.', 
-                      'https://cdn.tailwindcss.com',
-                      'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap',
-                      'https://fonts.googleapis.com/css2?family=Caveat&display=swap',
-                      'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-                      'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css',
-                      'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js',
-                      'https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js'
+                        '.', 
+                        'https://cdn.tailwindcss.com',
+                        'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap',
+                        'https://fonts.googleapis.com/css2?family=Caveat&display=swap',
+                        'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css',
+                        'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js'
                     ];
 
                     self.addEventListener('install', event => {
