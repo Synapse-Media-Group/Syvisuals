@@ -157,7 +157,6 @@
              transition: width 0.3s ease, height 0.3s ease;
         }
         
-        /* --- FIX: Center popup content, but keep panel in corner --- */
         #now-playing-panel.popup {
             width: 90%;
             max-width: 350px;
@@ -290,7 +289,8 @@
             position: absolute; bottom: 25%; left: 50%; transform: translateX(-50%);
             width: 80%; max-width: 900px; text-align: center;
             font-weight: bold; color: white; text-shadow: 0 0 15px black, 0 0 8px black;
-            transition: all 0.5s ease-in-out; pointer-events: none;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
             opacity: 0;
         }
         #lyrics-container.show {
@@ -614,7 +614,6 @@
         const defaultPalette = ['#00dfff', '#00aaff', '#0077ff', '#0044ff', '#0011ff'];
         let currentPalette = [...defaultPalette]; 
 
-        // --- FIX: Removed unimplemented visualizers from this list ---
         const visualizerStyles = [
             { id: 'bars', name: 'Bars', lyricsOnly: false }, { id: 'circle', name: 'Circle', lyricsOnly: false }, 
             { id: 'waveform', name: 'Wave', lyricsOnly: false }, { id: 'particles', name: 'Particles', lyricsOnly: false }, 
@@ -863,7 +862,6 @@
 
             const currentTheme = themeSettings[currentStyleId] || {};
             
-            // --- FIX: Corrected list of visualizers that use Time Domain data ---
             if (['waveform', 'neonwave', 'symmetry', 'wavemirror'].includes(currentStyleId)) {
                 analyser.getByteTimeDomainData(dataArray);
             } else {
@@ -1686,7 +1684,6 @@
 
             canvas.addEventListener('dblclick', toggleUI);
             
-            // --- FIX: Added event listener for queue toggle ---
             document.getElementById('now-playing-toggle-area').addEventListener('click', (e) => {
                 // We let clicks on the art label pass through to open the file dialog,
                 // but we still toggle the queue for a consistent experience.
@@ -1915,8 +1912,6 @@
 
         function toggleUI() {
             globalSettings.isUiVisible = !globalSettings.isUiVisible;
-            // --- FIX: Keep Now Playing panel visible ---
-            // nowPlayingPanel.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             bottomControls.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             playbackControls.classList.toggle('autohide', !globalSettings.isUiVisible);
             saveSettings('globalSettings', globalSettings);
@@ -2857,17 +2852,16 @@
                         if (recentLyrics.length > 10) recentLyrics.pop();
                     }
                 } else {
-                    lyricsContainer.classList.remove('show');
+                    lyricsContainer.classList.remove('show'); // Start fade out.
                     setTimeout(() => {
                         lyricsContainer.textContent = currentLyric;
                         if (currentLyric.trim() !== '') {
                             setAdaptiveFontSize(lyricsContainer, currentLyric);
-                            lyricsContainer.classList.add('show');
+                            lyricsContainer.classList.add('show'); // Start fade in.
                         }
-                    }, 250);
+                    }, 450); // Wait for fade-out to nearly complete.
                 }
             } else if (!isCanvasLyricTheme && lyricsContainer.classList.contains('show')) {
-                // FIX: Re-apply font size if it was reset by browser on style change
                 setAdaptiveFontSize(lyricsContainer, currentLyric);
             }
         }
@@ -2952,7 +2946,6 @@
                 currentStyleId = globalSettings.lastTheme || 'bars';
                 document.documentElement.style.fontSize = `${16 * globalSettings.uiScale}px`;
                 
-                // FIX: Validate the volume before setting it
                 if (globalSettings.volume !== undefined && isFinite(globalSettings.volume)) {
                     audioPlayer.volume = globalSettings.volume;
                 } else {
