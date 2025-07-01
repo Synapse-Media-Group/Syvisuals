@@ -156,14 +156,37 @@
         #now-playing-art {
              transition: width 0.3s ease, height 0.3s ease;
         }
-        #now-playing-panel.popup #now-playing-art {
-            width: 192px;
-            height: 192px;
+        
+        #now-playing-panel.popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+            padding: 2rem;
+            border-radius: 0;
         }
         #now-playing-panel.popup #now-playing-info {
             flex-direction: column;
-            align-items: flex-start;
+            align-items: center;
         }
+        #now-playing-panel.popup #now-playing-art {
+            width: min(80vw, 80vh);
+            height: min(80vw, 80vh);
+            max-width: 500px;
+            max-height: 500px;
+        }
+         #now-playing-panel.popup .overflow-hidden {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
         .dimmed { opacity: 0.5; }
         
         #now-playing-panel.queue-visible #queue-arrow {
@@ -470,7 +493,7 @@
                 <button id="create-playlist-btn" class="w-full text-center py-2 px-4 bg-cyan-500/80 hover:bg-cyan-500 rounded-lg mb-2">Create New Playlist</button>
                 <div id="playlists-list" class="scrollable-list"></div>
             </div>
-            <input type="file" id="audio-file-input" accept="audio/*" multiple class="file-input-hidden">
+            <input type="file" id="audio-file-input" accept="audio/*,audio/mpeg,audio/wav,audio/ogg" multiple class="file-input-hidden">
             <input type="file" id="lyrics-file-input" accept=".json" class="file-input-hidden">
             <input type="file" id="import-playlist-input" accept=".zip" class="file-input-hidden">
             <input type="file" id="song-art-input" accept="image/*" class="file-input-hidden">
@@ -594,7 +617,7 @@
         let globalSettings = {};
         let themeSettings = {};
 
-        let nowPlayingTimeout, themeTimeout;
+        let nowPlayingPopupTimeout, themeTimeout;
         let activePlaylistId = null;
         let cropper;
         const defaultPalette = ['#00dfff', '#00aaff', '#0077ff', '#0044ff', '#0011ff'];
@@ -1708,12 +1731,52 @@
 
             settingsModal.addEventListener('input', handleSettingsChange);
             
+            // --- Draggable Playhead Logic ---
+            let isSeeking = false;
+            const seek = (e) => {
+                const progressBarWrapper = document.querySelector('.progress-bar-wrapper');
+                if (!progressBarWrapper || !audioPlayer.duration) return;
+                const rect = progressBarWrapper.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const progress = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                audioPlayer.currentTime = audioPlayer.duration * progress;
+                updateProgress();
+            };
+
+            playbackControls.addEventListener('mousedown', (e) => {
+                if(e.target.closest('.progress-bar-wrapper')) {
+                    isSeeking = true;
+                    seek(e);
+                }
+            });
+            playbackControls.addEventListener('touchstart', (e) => {
+                if(e.target.closest('.progress-bar-wrapper')) {
+                    isSeeking = true;
+                    seek(e);
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isSeeking) {
+                    seek(e);
+                }
+            });
+             window.addEventListener('touchmove', (e) => {
+                if (isSeeking) {
+                    seek(e);
+                }
+            });
+
+            window.addEventListener('mouseup', () => { isSeeking = false; });
+            window.addEventListener('touchend', () => { isSeeking = false; });
+
+
             playbackControls.addEventListener('click', (e) => {
                 const button = e.target.closest('button');
                 if (!button) {
-                    if (e.target.closest('.progress-bar-wrapper')) {
-                        const rect = e.target.closest('.progress-bar-wrapper').getBoundingClientRect();
-                        audioPlayer.currentTime = audioPlayer.duration * ((e.clientX - rect.left) / rect.width);
+                    // This handles clicks on the progress bar when not dragging
+                    if(e.target.closest('.progress-bar-wrapper') && !isSeeking) {
+                         seek(e);
                     }
                     return;
                 }
@@ -2239,8 +2302,9 @@
             
             renderThemeList(); 
             
+            clearTimeout(nowPlayingPopupTimeout);
             nowPlayingPanel.classList.add('popup');
-            setTimeout(() => nowPlayingPanel.classList.remove('popup'), 3000);
+            nowPlayingPopupTimeout = setTimeout(() => nowPlayingPanel.classList.remove('popup'), 3000);
 
             document.getElementById('now-playing-art').src = song.art || 'https://placehold.co/128x128/0a0a0a/e0e0e0?text=...&font=orbitron';
             document.getElementById('now-playing-title').textContent = song.title;
@@ -2826,7 +2890,7 @@
 
         function updateProgress() {
             const progressBar = document.getElementById('progress-bar');
-            if (progressBar && audioPlayer.duration) {
+            if (progressBar && audioPlayer.duration && !isSeeking) {
                 progressBar.style.width = `${(audioPlayer.currentTime / audioPlayer.duration) * 100}%`;
                 document.getElementById('current-time').textContent = formatTime(audioPlayer.currentTime);
                 document.getElementById('duration').textContent = formatTime(audioPlayer.duration);
