@@ -138,27 +138,6 @@
             fill: currentColor;
         }
 
-        #queue-panel { 
-            position: fixed;
-            bottom: 8rem;
-            right: 2rem;
-            width: 90%;
-            max-width: 350px;
-            height: 35vh;
-            max-height: 300px;
-            display: flex;
-            flex-direction: column;
-            pointer-events: auto;
-            z-index: 10;
-        }
-        
-        body.mobile-layout #queue-panel {
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: calc(6rem + env(safe-area-inset-bottom)); /* Adjust for bottom nav */
-            width: 90vw;
-        }
-
         #now-playing-panel {
             position: absolute;
             top: 2rem;
@@ -186,6 +165,14 @@
             align-items: flex-start;
         }
         .dimmed { opacity: 0.5; }
+        
+        #now-playing-panel.queue-visible #queue-arrow {
+            transform: rotate(180deg);
+        }
+
+        #integrated-queue-wrapper {
+            transition: max-height 0.5s ease-in-out, opacity 0.5s;
+        }
 
         .scrollable-list { overflow-y: auto; flex-grow: 1; }
         .scrollable-list::-webkit-scrollbar { width: 8px; }
@@ -295,7 +282,7 @@
             z-index: 80;
         }
         body.mobile-layout #playback-controls {
-            bottom: calc(4.5rem + env(safe-area-inset-bottom));
+            bottom: calc(6rem + env(safe-area-inset-bottom));
         }
 
         /* Desktop Player */
@@ -415,15 +402,24 @@
     <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden"></div>
     <canvas id="visualizer"></canvas>
 
-    <div id="now-playing-panel" class="glass-panel !p-3">
-        <div id="now-playing-info" class="flex items-center gap-4 transition-all duration-500">
-            <label for="song-art-input" class="cursor-pointer">
-                <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
-            </label>
-            <div class="overflow-hidden">
-                <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
-                <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
+    <div id="now-playing-panel" class="glass-panel !p-3 flex flex-col transition-all duration-300">
+        <div id="now-playing-toggle-area" class="flex items-center gap-4 cursor-pointer">
+            <div id="now-playing-info" class="flex items-center gap-4 flex-grow">
+                <label for="song-art-input" class="cursor-pointer flex-shrink-0">
+                    <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
+                </label>
+                <div class="overflow-hidden">
+                    <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
+                    <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
+                </div>
             </div>
+            <svg id="queue-arrow" class="w-5 h-5 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </div>
+        
+        <div id="integrated-queue-wrapper" class="hidden overflow-hidden mt-3">
+            <h2 class="text-lg font-bold mb-2 text-cyan-400">Up Next</h2>
+            <div id="queue-items" class="scrollable-list max-h-48"></div>
+            <button id="clear-queue-btn" class="mt-2 w-full text-center py-1 px-2 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-xs">Clear Queue</button>
         </div>
     </div>
 
@@ -560,12 +556,6 @@
         </div>
     </div>
 
-    <div id="queue-panel" class="glass-panel">
-        <h2 class="text-xl font-bold mb-4">Up Next</h2>
-        <div id="queue-items" class="scrollable-list flex-grow"></div>
-        <button id="clear-queue-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm">Clear Queue</button>
-    </div>
-
     <div id="playback-controls"></div>
     <audio id="audio-player" crossOrigin="anonymous"></audio>
 
@@ -573,7 +563,6 @@
         const canvas = document.getElementById('visualizer'), ctx = canvas.getContext('2d');
         const audioPlayer = document.getElementById('audio-player');
         const uiContainer = document.getElementById('ui-container'), lyricsContainer = document.getElementById('lyrics-container');
-        const queueItemsContainer = document.getElementById('queue-items');
         const settingsModal = document.getElementById('settings-modal');
         const fullLibraryModal = document.getElementById('full-library-modal');
         const themeListModal = document.getElementById('theme-list-modal');
@@ -583,6 +572,8 @@
         const playlistManagementModal = document.getElementById('playlist-management-modal');
         const modalOverlay = document.getElementById('modal-overlay');
         const bottomControls = document.getElementById('bottom-controls');
+        const nowPlayingPanel = document.getElementById('now-playing-panel');
+        const queueItemsContainer = document.getElementById('queue-items');
         
         let audioContext, analyser, source, dataArray, bufferLength;
         let db;
@@ -656,7 +647,7 @@
         }
 
         function buildUI() {
-            // Build Bottom Controls (desktop buttons or mobile nav)
+            // Build Playback Controls based on device
             if (isMobileDevice()) {
                  bottomControls.innerHTML = `
                     <button id="library-btn" class="bottom-nav-btn">
@@ -1620,11 +1611,23 @@
         function setupEventListeners() {
             window.addEventListener('resize', resizeCanvas);
             
+            // Double tap/click listener for UI toggle
+            let lastTap = 0;
+            canvas.addEventListener('touchend', (e) => {
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                if (tapLength < 300 && tapLength > 0) {
+                    toggleUI();
+                    e.preventDefault();
+                }
+                lastTap = currentTime;
+            });
+            canvas.addEventListener('dblclick', toggleUI);
+            
             const audioFileInput = document.getElementById('audio-file-input');
             const lyricsFileInput = document.getElementById('lyrics-file-input');
             const importPlaylistInput = document.getElementById('import-playlist-input');
             const songArtInput = document.getElementById('song-art-input');
-            const nowPlayingPanel = document.getElementById('now-playing-panel');
 
             document.getElementById('add-audio-btn').addEventListener('click', () => audioFileInput.click());
             document.getElementById('add-lyrics-btn').addEventListener('click', () => lyricsFileInput.click());
@@ -1744,6 +1747,34 @@
                 }
             });
 
+            // Now Playing Panel & Integrated Queue Listeners
+            nowPlayingPanel.addEventListener('click', (e) => {
+                // Toggle queue visibility
+                if (e.target.closest('#now-playing-toggle-area')) {
+                    const wrapper = document.getElementById('integrated-queue-wrapper');
+                    nowPlayingPanel.classList.toggle('queue-visible');
+                    wrapper.classList.toggle('hidden');
+                }
+
+                // Handle clear queue
+                if (e.target.closest('#clear-queue-btn')) {
+                    playQueue = [];
+                    currentQueueIndex = -1;
+                    renderQueue();
+                }
+            });
+
+            queueItemsContainer.addEventListener('click', (e) => {
+                const queueItem = e.target.closest('[data-queue-index]');
+                if (queueItem) {
+                    const index = parseInt(queueItem.dataset.queueIndex, 10);
+                    if (!isNaN(index) && index !== currentQueueIndex) {
+                        currentQueueIndex = index;
+                        playSongFromQueue();
+                    }
+                }
+            });
+
 
             audioPlayer.addEventListener('timeupdate', () => { updateProgress(); updateLyrics(); });
             audioPlayer.addEventListener('loadedmetadata', updateProgress);
@@ -1778,7 +1809,6 @@
             modal.classList.toggle('opacity-0', !show);
 
             // Handle dimming for theme list modal
-            const nowPlayingPanel = document.getElementById('now-playing-panel');
             if (modal.id === 'theme-list-modal') {
                 nowPlayingPanel.classList.toggle('dimmed', show);
             }
@@ -1788,7 +1818,7 @@
 
         function toggleUI() {
             globalSettings.isUiVisible = !globalSettings.isUiVisible;
-            document.getElementById('queue-panel').classList.toggle('opacity-0', !globalSettings.isUiVisible);
+            nowPlayingPanel.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             bottomControls.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             playbackControls.classList.toggle('autohide', !globalSettings.isUiVisible);
             saveSettings('globalSettings', globalSettings);
@@ -2169,7 +2199,6 @@
             
             renderThemeList(); 
             
-            const nowPlayingPanel = document.getElementById('now-playing-panel');
             nowPlayingPanel.classList.add('popup');
             setTimeout(() => nowPlayingPanel.classList.remove('popup'), 3000);
 
