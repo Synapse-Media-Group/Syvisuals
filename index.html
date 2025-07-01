@@ -138,6 +138,27 @@
             fill: currentColor;
         }
 
+        #queue-panel { 
+            position: fixed;
+            bottom: 8rem;
+            right: 2rem;
+            width: 90%;
+            max-width: 350px;
+            height: 35vh;
+            max-height: 300px;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        
+        body.mobile-layout #queue-panel {
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(10rem + env(safe-area-inset-bottom)); /* Adjust for bottom nav */
+            width: 90vw;
+        }
+
         #now-playing-panel {
             position: absolute;
             top: 2rem;
@@ -188,22 +209,6 @@
         }
 
         .dimmed { opacity: 0.5; }
-        
-        #now-playing-panel.queue-visible #queue-arrow {
-            transform: rotate(180deg);
-        }
-
-        #integrated-queue-wrapper {
-            max-height: 0;
-            opacity: 0;
-            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out;
-        }
-
-        #now-playing-panel.queue-visible #integrated-queue-wrapper {
-            max-height: 50vh;
-            opacity: 1;
-            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease-in;
-        }
 
         .scrollable-list { overflow-y: auto; flex-grow: 1; }
         .scrollable-list::-webkit-scrollbar { width: 8px; }
@@ -433,24 +438,15 @@
     <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden"></div>
     <canvas id="visualizer"></canvas>
 
-    <div id="now-playing-panel" class="glass-panel !p-3 flex flex-col transition-all duration-300">
-        <div id="now-playing-toggle-area" class="flex items-center gap-4 cursor-pointer">
-            <div id="now-playing-info" class="flex items-center gap-4 flex-grow">
-                <label for="song-art-input" class="cursor-pointer flex-shrink-0">
-                    <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
-                </label>
-                <div class="overflow-hidden">
-                    <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
-                    <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
-                </div>
+    <div id="now-playing-panel" class="glass-panel !p-3">
+        <div id="now-playing-info" class="flex items-center gap-4">
+            <label for="song-art-input" class="cursor-pointer flex-shrink-0">
+                <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
+            </label>
+            <div class="overflow-hidden">
+                <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
+                <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
             </div>
-            <svg id="queue-arrow" class="w-5 h-5 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-        </div>
-        
-        <div id="integrated-queue-wrapper" class="overflow-hidden mt-3">
-            <h2 class="text-lg font-bold mb-2 text-cyan-400">Up Next</h2>
-            <div id="queue-items" class="scrollable-list max-h-48"></div>
-            <button id="clear-queue-btn" class="mt-2 w-full text-center py-1 px-2 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-xs">Clear Queue</button>
         </div>
     </div>
 
@@ -587,6 +583,12 @@
         </div>
     </div>
 
+    <div id="queue-panel" class="glass-panel">
+        <h2 class="text-xl font-bold mb-4">Up Next</h2>
+        <div id="queue-items" class="scrollable-list flex-grow"></div>
+        <button id="clear-queue-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm">Clear Queue</button>
+    </div>
+
     <div id="playback-controls"></div>
     <audio id="audio-player" crossOrigin="anonymous"></audio>
 
@@ -611,7 +613,7 @@
         let deferredInstallPrompt = null;
 
         let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
-        let currentStyleId = 'bars', rotation = 0, particles = [], recentLyrics = [], lyricAnimationState = {};
+        let currentStyleId = 'bars', rotation = 0, particles = [], lyricAnimationState = {};
         let repeatMode = 'none', isShuffled = false;
         
         let globalSettings = {};
@@ -871,7 +873,7 @@
 
             const currentTheme = themeSettings[currentStyleId] || {};
             
-            if (['waveform', 'neonwave', 'tunnel', 'symmetry', 'wavemirror', 'vortex', 'towers', 'rings', 'nebula'].includes(currentStyleId)) {
+            if (['waveform', 'neonwave', 'tunnel', 'symmetry', 'wavemirror', 'vortex', 'towers', 'rings', 'nebula', 'audioLandscape', 'dnaHelix', 'soundWaves3D'].includes(currentStyleId)) {
                 analyser.getByteTimeDomainData(dataArray);
             } else {
                 analyser.getByteFrequencyData(dataArray);
@@ -1854,11 +1856,6 @@
                     playPlaylist(activePlaylistId);
                     closePlaylistManager(); 
                 }
-            });
-
-            // Now Playing Panel & Integrated Queue Listeners
-            document.getElementById('now-playing-toggle-area').addEventListener('click', () => {
-                nowPlayingPanel.classList.toggle('queue-visible');
             });
 
             document.getElementById('clear-queue-btn').addEventListener('click', () => {
