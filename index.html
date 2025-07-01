@@ -156,14 +156,28 @@
         #now-playing-art {
              transition: width 0.3s ease, height 0.3s ease;
         }
+        
+        /* --- FIX: Center popup content, but keep panel in corner --- */
+        #now-playing-panel.popup {
+            width: 90%;
+            max-width: 350px;
+        }
+        
         #now-playing-panel.popup #now-playing-art {
             width: 192px;
             height: 192px;
         }
+        
         #now-playing-panel.popup #now-playing-info {
             flex-direction: column;
-            align-items: flex-start;
+            align-items: center; /* This centers the album art and text block */
         }
+        
+        #now-playing-panel.popup .overflow-hidden {
+            text-align: center; /* This centers the title and artist text */
+            margin-top: 1rem;
+        }
+
         .dimmed { opacity: 0.5; }
         
         #now-playing-panel.queue-visible #queue-arrow {
@@ -1901,7 +1915,8 @@
 
         function toggleUI() {
             globalSettings.isUiVisible = !globalSettings.isUiVisible;
-            nowPlayingPanel.classList.toggle('opacity-0', !globalSettings.isUiVisible);
+            // --- FIX: Keep Now Playing panel visible ---
+            // nowPlayingPanel.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             bottomControls.classList.toggle('opacity-0', !globalSettings.isUiVisible);
             playbackControls.classList.toggle('autohide', !globalSettings.isUiVisible);
             saveSettings('globalSettings', globalSettings);
