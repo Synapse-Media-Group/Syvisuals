@@ -22,7 +22,7 @@
             --primary-color: #00dfff;
             --dark-color: #0a0a0a;
             --light-text: #e0e0e0;
-            --dim-text: #a0a0a;
+            --dim-text: #a0a0a0;
         }
         html {
             font-size: 16px; /* Base font size for UI scaling */
@@ -138,27 +138,6 @@
             fill: currentColor;
         }
 
-        #queue-panel { 
-            position: fixed;
-            bottom: 8rem;
-            right: 2rem;
-            width: 90%;
-            max-width: 350px;
-            height: 35vh;
-            max-height: 300px;
-            display: flex;
-            flex-direction: column;
-            pointer-events: auto;
-            z-index: 10;
-        }
-        
-        body.mobile-layout #queue-panel {
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: calc(10rem + env(safe-area-inset-bottom)); /* Adjust for bottom nav */
-            width: 90vw;
-        }
-
         #now-playing-panel {
             position: absolute;
             top: 2rem;
@@ -177,38 +156,31 @@
         #now-playing-art {
              transition: width 0.3s ease, height 0.3s ease;
         }
-        
-        #now-playing-panel.popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(10px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 150;
-            padding: 2rem;
-            border-radius: 0;
+        #now-playing-panel.popup #now-playing-art {
+            width: 192px;
+            height: 192px;
         }
         #now-playing-panel.popup #now-playing-info {
             flex-direction: column;
-            align-items: center;
+            align-items: flex-start;
         }
-        #now-playing-panel.popup #now-playing-art {
-            width: min(80vw, 80vh);
-            height: min(80vw, 80vh);
-            max-width: 500px;
-            max-height: 500px;
-        }
-         #now-playing-panel.popup .overflow-hidden {
-            text-align: center;
-            margin-top: 1rem;
+        .dimmed { opacity: 0.5; }
+        
+        #now-playing-panel.queue-visible #queue-arrow {
+            transform: rotate(180deg);
         }
 
-        .dimmed { opacity: 0.5; }
+        #integrated-queue-wrapper {
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out;
+        }
+
+        #now-playing-panel.queue-visible #integrated-queue-wrapper {
+            max-height: 50vh;
+            opacity: 1;
+            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease-in;
+        }
 
         .scrollable-list { overflow-y: auto; flex-grow: 1; }
         .scrollable-list::-webkit-scrollbar { width: 8px; }
@@ -352,7 +324,7 @@
         }
 
 
-        .playback-btn { background: transparent; border: none; cursor: pointer; fill: var(--dim-text); transition: all 0.2s; }
+        .playback-btn { background: transparent; border: none; cursor: pointer; fill: var(--light-text); transition: all 0.2s; }
         .playback-btn:hover { fill: var(--primary-color); transform: scale(1.1); }
         .playback-btn.active { fill: var(--primary-color); text-shadow: 0 0 10px var(--primary-color); }
         .play-pause-btn { background-color: var(--primary-color); border-radius: 50%; width: 50px; height: 50px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 20px var(--primary-color); }
@@ -438,15 +410,24 @@
     <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden"></div>
     <canvas id="visualizer"></canvas>
 
-    <div id="now-playing-panel" class="glass-panel !p-3">
-        <div id="now-playing-info" class="flex items-center gap-4">
-            <label for="song-art-input" class="cursor-pointer flex-shrink-0">
-                <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
-            </label>
-            <div class="overflow-hidden">
-                <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
-                <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
+    <div id="now-playing-panel" class="glass-panel !p-3 flex flex-col transition-all duration-300">
+        <div id="now-playing-toggle-area" class="flex items-center gap-4 cursor-pointer">
+            <div id="now-playing-info" class="flex items-center gap-4 flex-grow">
+                <label for="song-art-input" class="cursor-pointer flex-shrink-0">
+                    <img id="now-playing-art" src="https://placehold.co/64x64/0a0a0a/e0e0e0?text=...&font=orbitron" class="w-16 h-16 rounded-md bg-black/50 object-cover">
+                </label>
+                <div class="overflow-hidden">
+                    <div id="now-playing-title" class="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis">No Song Playing</div>
+                    <div id="now-playing-artist" class="text-sm text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">...</div>
+                </div>
             </div>
+            <svg id="queue-arrow" class="w-5 h-5 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </div>
+        
+        <div id="integrated-queue-wrapper" class="overflow-hidden mt-3">
+            <h2 class="text-lg font-bold mb-2 text-cyan-400">Up Next</h2>
+            <div id="queue-items" class="scrollable-list max-h-48"></div>
+            <button id="clear-queue-btn" class="mt-2 w-full text-center py-1 px-2 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-xs">Clear Queue</button>
         </div>
     </div>
 
@@ -583,12 +564,6 @@
         </div>
     </div>
 
-    <div id="queue-panel" class="glass-panel">
-        <h2 class="text-xl font-bold mb-4">Up Next</h2>
-        <div id="queue-items" class="scrollable-list flex-grow"></div>
-        <button id="clear-queue-btn" class="mt-4 w-full text-center py-2 px-4 bg-gray-600/50 hover:bg-gray-500/50 rounded-lg text-sm">Clear Queue</button>
-    </div>
-
     <div id="playback-controls"></div>
     <audio id="audio-player" crossOrigin="anonymous"></audio>
 
@@ -614,7 +589,7 @@
 
         let library = [], lyricsLibrary = new Map(), playlists = [], playQueue = [], currentQueueIndex = -1;
         let currentStyleId = 'bars', rotation = 0, particles = [], lyricAnimationState = {};
-        let repeatMode = 'none', isShuffled = false;
+        let repeatMode = 'none', isShuffled = false, isSeeking = false;
         
         let globalSettings = {};
         let themeSettings = {};
@@ -625,6 +600,7 @@
         const defaultPalette = ['#00dfff', '#00aaff', '#0077ff', '#0044ff', '#0011ff'];
         let currentPalette = [...defaultPalette]; 
 
+        // --- FIX: Removed unimplemented visualizers from this list ---
         const visualizerStyles = [
             { id: 'bars', name: 'Bars', lyricsOnly: false }, { id: 'circle', name: 'Circle', lyricsOnly: false }, 
             { id: 'waveform', name: 'Wave', lyricsOnly: false }, { id: 'particles', name: 'Particles', lyricsOnly: false }, 
@@ -682,7 +658,7 @@
         function buildUI() {
             // Build Playback Controls based on device
             if (isMobileDevice()) {
-                 bottomControls.innerHTML = `
+                bottomControls.innerHTML = `
                     <button id="library-btn" class="bottom-nav-btn">
                         <svg viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
                         <span>Library</span>
@@ -695,7 +671,7 @@
                         <svg viewBox="0 0 20 20"><path d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-1.57 1.996A1.532 1.532 0 013.17 7.49c-1.56.38-1.56 2.6 0 2.98a1.532 1.532 0 01.948 2.286c-.836 1.372.734 2.942 1.996 1.57A1.532 1.532 0 017.49 16.83c.38 1.56 2.6 1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 1.57-1.996A1.532 1.532 0 0116.83 12.51c1.56-.38 1.56-2.6 0-2.98a1.532 1.532 0 01-.948-2.286c.836-1.372-.734-2.942-1.996-1.57A1.532 1.532 0 0111.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z"></path></svg>
                         <span>Settings</span>
                     </button>
-                 `;
+                `;
                 playbackControls.innerHTML = `
                     <div class="custom-player-mobile">
                         <div class="progress-container">
@@ -715,7 +691,7 @@
                         </div>
                     </div>`;
             } else {
-                 bottomControls.innerHTML = `
+                bottomControls.innerHTML = `
                     <button id="library-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
                          <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"></path></svg>
                     </button>
@@ -725,7 +701,7 @@
                     <button id="settings-btn" class="glass-panel !p-3 hover:bg-cyan-400/20 transition-all">
                          <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-1.57 1.996A1.532 1.532 0 013.17 7.49c-1.56.38-1.56 2.6 0 2.98a1.532 1.532 0 01.948 2.286c-.836 1.372.734 2.942 1.996 1.57A1.532 1.532 0 017.49 16.83c.38 1.56 2.6 1.56 2.98 0a1.532 1.532 0 012.286-.948c1.372.836 2.942-.734 1.57-1.996A1.532 1.532 0 0116.83 12.51c1.56-.38 1.56-2.6 0-2.98a1.532 1.532 0 01-.948-2.286c.836-1.372-.734-2.942-1.996-1.57A1.532 1.532 0 0111.49 3.17zM10 13a3 3 0 100-6 3 3 0 000 6z"></path></svg>
                     </button>
-                 `;
+                `;
                 playbackControls.innerHTML = `
                     <div class="custom-player">
                         <button id="shuffle-btn" class="playback-btn">${shuffleSVG}</button>
@@ -873,7 +849,8 @@
 
             const currentTheme = themeSettings[currentStyleId] || {};
             
-            if (['waveform', 'neonwave', 'tunnel', 'symmetry', 'wavemirror', 'vortex', 'towers', 'rings', 'nebula', 'audioLandscape', 'dnaHelix', 'soundWaves3D'].includes(currentStyleId)) {
+            // --- FIX: Corrected list of visualizers that use Time Domain data ---
+            if (['waveform', 'neonwave', 'symmetry', 'wavemirror'].includes(currentStyleId)) {
                 analyser.getByteTimeDomainData(dataArray);
             } else {
                 analyser.getByteFrequencyData(dataArray);
@@ -1689,12 +1666,19 @@
                  if (touchStartX === 0) return;
                  const deltaX = e.touches[0].clientX - touchStartX;
                  if (Math.abs(deltaX) > 10) { // If horizontal movement, prevent vertical scroll
-                    e.preventDefault();
+                     e.preventDefault();
                  }
             });
 
             canvas.addEventListener('dblclick', toggleUI);
             
+            // --- FIX: Added event listener for queue toggle ---
+            document.getElementById('now-playing-toggle-area').addEventListener('click', (e) => {
+                // We let clicks on the art label pass through to open the file dialog,
+                // but we still toggle the queue for a consistent experience.
+                nowPlayingPanel.classList.toggle('queue-visible');
+            });
+
             const audioFileInput = document.getElementById('audio-file-input');
             const lyricsFileInput = document.getElementById('lyrics-file-input');
             const importPlaylistInput = document.getElementById('import-playlist-input');
@@ -1734,7 +1718,6 @@
             settingsModal.addEventListener('input', handleSettingsChange);
             
             // --- Draggable Playhead Logic ---
-            let isSeeking = false;
             const seek = (e) => {
                 const progressBarWrapper = document.querySelector('.progress-bar-wrapper');
                 if (!progressBarWrapper || !audioPlayer.duration) return;
@@ -2275,8 +2258,8 @@
                 shuffleQueue(true, libraryIndex);
             } else {
                  playQueue = library.map((s, i) => ({ songId: s.id, originalIndex: i }))
-                      .slice(libraryIndex)
-                      .concat(library.map((s, i) => ({ songId: s.id, originalIndex: i })).slice(0, libraryIndex));
+                     .slice(libraryIndex)
+                     .concat(library.map((s, i) => ({ songId: s.id, originalIndex: i })).slice(0, libraryIndex));
             }
             playSongFromQueue();
         }
@@ -2375,9 +2358,9 @@
             if (playQueue.length > 0) {
                  if(isShuffled) shuffleQueue(true);
                  else {
-                  const currentSongId = playQueue[currentQueueIndex].songId;
-                  const libIndex = library.findIndex(s => s.id === currentSongId);
-                  playFromLibrary(libIndex !== -1 ? currentSongId : (library[0]?.id || -1));
+                 const currentSongId = playQueue[currentQueueIndex].songId;
+                 const libIndex = library.findIndex(s => s.id === currentSongId);
+                 playFromLibrary(libIndex !== -1 ? currentSongId : (library[0]?.id || -1));
                  }
                  renderQueue();
             }
@@ -2499,7 +2482,7 @@
                              ${musicNoteSVG}
                              <span class="flex-grow">${song.title}</span>
                              <button class="remove-song-from-playlist-btn p-1 rounded-full hover:bg-red-500/20">${deleteSVG}</button>
-                         </div>`;
+                          </div>`;
             }).join('');
         }
 
